@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Merchant {
+  id          String    @id @default(uuid())
+  name        String
+  description String
+  currency    String    @default("INR")
+  status      String    @default("ACTIVE")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+
+  @@map("merchants")
+}
+
+model Product {
+  id               String     @id @default(uuid())
+  merchantId       String
+  merchant         Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  sku              String     @unique
+  name             String
+  description      String
+  category         String
+  price            Int        // Price in smallest currency unit (e.g. INR integer)
+  currency         String     @default("INR")
+  attributes       Json       // Structured attributes: { wireless, anc, battery_hours, ram, etc. }
+  rating           Float      @default(0.0)
+  imageUrl         String
+  deliveryEstimate String
+  status           String     @default("ACTIVE")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  inventory        Inventory?
+
+  @@index([category])
+  @@index([price])
+  @@index([rating])
+  @@index([status])
+  @@index([merchantId])
+  @@map("products")
+}
+
+model Inventory {
+  id                String   @id @default(uuid())
+  productId         String   @unique
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  availableQuantity Int      @default(0)
+  reservedQuantity  Int      @default(0)
+  updatedAt         DateTime @updatedAt
+
+  @@map("inventories")
+}

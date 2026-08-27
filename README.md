@@ -1,380 +1,285 @@
-<div align="center">
+# 🛒 AgentCart — Phase 1: TechKart Merchant Foundation
 
-# 🛒 Agentic Commerce
-### Razorpay AI Buildathon
-
-*AI-powered agentic shopping platform with autonomous payment flows*
-
-[![CI](https://github.com/YOUR_USERNAME/Agentic_Commerce/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/Agentic_Commerce/actions/workflows/ci.yml)
-[![CD](https://github.com/YOUR_USERNAME/Agentic_Commerce/actions/workflows/cd.yml/badge.svg)](https://github.com/YOUR_USERNAME/Agentic_Commerce/actions/workflows/cd.yml)
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-
-</div>
+> **Razorpay AI Buildathon Project**
+> An AI-native commerce layer designed for autonomous AI buyer agents to discover, verify, and purchase products through authoritative merchant APIs.
 
 ---
 
-## Table of Contents
+## 📌 Phase 1 Scope
 
-- [Project Overview](#project-overview)
-- [Project Structure](#project-structure)
-- [Running Locally](#running-locally)
-- [Docker Compose](#docker-compose)
-- [CI Pipeline](#ci-pipeline)
-- [CD Pipeline](#cd-pipeline)
-- [GitHub Secrets](#github-secrets)
-- [Adding New Services](#adding-new-services)
-- [Deployment](#deployment)
+This repository contains **Phase 1 (Merchant Foundation)** of AgentCart:
+- **Simulated Merchant**: TechKart Electronics (Consumer Electronics & Computing Store).
+- **Product Catalog**: 25+ structured products across 8 categories with deep machine-readable attributes.
+- **Inventory & Pricing**: Real-time stock availability and server-authoritative integer INR pricing stored in PostgreSQL.
+- **Merchant REST APIs**: Fastify v1 endpoints designed for AI agents without HTML scraping.
+- **Rule Engine**: Condition-based (IF/THEN) retail policy engine for validation, cart optimization, security, caching, and accessibility.
+- **Catalog UI**: Polished Next.js & Tailwind CSS catalog interface with an interactive **AI JSON Inspector**.
 
----
-
-## Project Overview
-
-Agentic Commerce is an AI-powered autonomous commerce platform built for the **Razorpay AI Buildathon**.
-It combines intelligent agents, real-time triggers, and seamless Razorpay payment flows to create
-a next-generation shopping experience.
-
-> 📄 See [`Project_details.md`](./Project_details.md) for full product requirements and architecture.
+> **Note on Future Phases**: Phase 1 strictly implements the Merchant Foundation. AI Buyer Agents, LLM shopping loops, ACP/AP2 authorization, and Razorpay payment integration will be implemented in subsequent phases.
 
 ---
 
-## Project Structure
+## 🛠️ Tech Stack
 
+| Layer | Technology |
+|---|---|
+| **Backend API** | Node.js, Fastify, TypeScript (Strict Mode) |
+| **Database** | PostgreSQL 18, Prisma ORM |
+| **Validation** | Zod |
+| **Frontend Catalog** | Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons |
+| **Testing** | Vitest |
+| **Orchestration** | NPM Workspaces |
+
+---
+
+## 🏗️ Architecture
+
+```text
+                 TECHKART
+                    │
+          ┌─────────┴─────────┐
+          ↓                   ↓
+     Frontend UI          Merchant API (Fastify)
+     (Next.js)                │
+          │                   ↓
+          │            Condition Rule Engine
+          │                   │
+          │                   ↓
+          │              PostgreSQL (Prisma)
+          │                   │
+          └─────────┬─────────┘
+                    ↓
+              Product Catalog
+              Real-Time Inventory
+              Authoritative Pricing
 ```
+
+Detailed architectural specifications are documented in [`docs/architecture.md`](./docs/architecture.md).
+
+---
+
+## 📦 Project Structure
+
+```text
 Agentic_Commerce/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml              # Continuous Integration (lint, test, build, docker)
-│       └── cd.yml              # Continuous Deployment (build → push → deploy)
+├── apps/
+│   ├── api/                          # Fastify + TypeScript + Prisma + Zod backend
+│   │   ├── src/
+│   │   │   ├── config/               # Env parsing, Prisma singleton
+│   │   │   ├── middleware/           # Request ID, rate limiter, error handler
+│   │   │   ├── repositories/         # Prisma repositories (Product, Merchant, Inventory)
+│   │   │   ├── routes/               # /api/v1/merchant, /api/v1/products, /api/v1/inventory, /api/v1/rules
+│   │   │   ├── rules/                # Condition-based Retail Rule Engine
+│   │   │   ├── schemas/              # Zod schemas for AI-readable DTOs
+│   │   │   ├── services/             # Catalog, Merchant, Inventory, Cache services
+│   │   │   ├── app.ts                # Fastify app builder
+│   │   │   └── server.ts             # Backend entry point
+│   │   └── tests/                    # Vitest integration and unit tests
+│   │
+│   └── web/                          # Next.js + Tailwind CSS catalog UI
+│       ├── src/
+│       │   ├── app/                  # App router (Catalog page & layout)
+│       │   ├── components/           # Navbar, MetricsBar, ProductCard, FilterBar, JsonDrawer, RuleDrawer
+│       │   └── lib/                  # API client, types, formatters
 │
-├── backend/                    # Python / FastAPI backend
-│   ├── app/
-│   │   ├── __init__.py
-│   │   └── main.py             # FastAPI application entry point
-│   ├── tests/
-│   │   ├── __init__.py
-│   │   └── test_health.py      # Smoke tests
-│   ├── Dockerfile              # Multi-stage production image
-│   ├── .dockerignore
-│   ├── requirements.txt        # Production dependencies
-│   ├── requirements-dev.txt    # Dev / test dependencies
-│   └── pyproject.toml          # pytest, ruff, black, mypy config
-│
-├── frontend/                   # React + TypeScript + Vite frontend
-│   ├── src/
-│   │   ├── main.tsx            # React entry point
-│   │   └── test/
-│   │       ├── setup.ts        # Vitest setup
-│   │       └── App.test.tsx    # Smoke tests
-│   ├── Dockerfile              # Multi-stage Node→Nginx image
-│   ├── .dockerignore
-│   ├── nginx.conf              # Nginx SPA + API proxy config
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   └── .eslintrc.cjs
-│
-├── infra/
-│   └── mosquitto/
-│       └── mosquitto.conf      # MQTT broker config
+├── prisma/
+│   ├── schema.prisma                 # Merchant, Product, Inventory models
+│   └── seed.ts                       # Idempotent seed script (25 products)
 │
 ├── docs/
-│   └── secrets.md              # GitHub Secrets reference (no real values)
-│
-├── docker-compose.yml          # Orchestrates all services
-├── .env.example                # Environment variable template (safe to commit)
-├── .gitignore
-├── Project_details.md
+│   └── architecture.md               # Architecture documentation
+├── .env.example
+├── .env
+├── package.json                      # Workspace root orchestrator
 └── README.md
 ```
 
 ---
 
-## Running Locally
+## 🚀 Getting Started Locally
 
-### Prerequisites
+### 1. Prerequisites
+- **Node.js**: `v20+` (v22 recommended)
+- **PostgreSQL**: Running locally or via Docker on port `5432`
 
-- Python 3.11+
-- Node.js 20+
-- Docker & Docker Compose v2
-
-### 1 — Clone and configure environment
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` and adjust the PostgreSQL connection string if needed:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Agentic_Commerce.git
-cd Agentic_Commerce
-
-# Copy the template and fill in your real values
 cp .env.example .env
 ```
 
-Edit `.env` with your actual credentials. The file is git-ignored — it will never be committed.
-
----
-
-### 2 — Run the backend (without Docker)
-
-```bash
-cd backend
-
-# Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Start the dev server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+Default `.env`:
+```env
+DATABASE_URL="postgresql://VAIBHAV@localhost:5432/agentcart"
+PORT=4000
+HOST="0.0.0.0"
+NODE_ENV="development"
+CORS_ORIGIN="http://localhost:3000"
+NEXT_PUBLIC_API_BASE_URL="http://localhost:4000"
 ```
 
-Backend will be live at **http://localhost:8000**
-Interactive API docs at **http://localhost:8000/docs**
-
----
-
-### 3 — Run the frontend (without Docker)
-
+### 3. Install Dependencies
 ```bash
-cd frontend
-
 npm install
+```
+
+### 4. Setup Database Schema & Seed Data
+```bash
+# Push Prisma schema to PostgreSQL
+npm run db:push
+
+# Seed TechKart Merchant and 25 realistic electronics products
+npm run db:seed
+```
+
+### 5. Start Development Servers
+
+Run both Backend API and Frontend simultaneously:
+```bash
 npm run dev
 ```
 
-Frontend will be live at **http://localhost:5173**
+Or run individually:
+```bash
+# Start Fastify Merchant API on port 4000
+npm run dev:api
+
+# Start Next.js Frontend Catalog on port 3000
+npm run dev:web
+```
 
 ---
 
-### 4 — Run backend tests locally
+## 🧪 Running Tests & Typechecks
 
 ```bash
-cd backend
-pytest                    # run all tests
-pytest --cov=app          # with coverage
-pytest -v -x              # verbose, stop on first failure
+# Run all Vitest test suites (API, Search, Inventory, Rule Engine)
+npm run test
+
+# Run TypeScript strict typechecks across all workspaces
+npm run typecheck
+
+# Build production bundles
+npm run build
 ```
 
 ---
 
-### 5 — Run frontend lint & tests locally
+## 🔌 Merchant API Reference
 
+### Base URL: `http://localhost:4000/api/v1`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Service and database health check |
+| `GET` | `/api/v1/merchant` | Merchant profile and AI-readiness metrics |
+| `GET` | `/api/v1/products` | Paginated product list |
+| `GET` | `/api/v1/products/:id` | Get single product by UUID |
+| `GET` | `/api/v1/products/search` | Search & filter products (query, category, price, stock, rating) |
+| `GET` | `/api/v1/inventory/:productId` | Real-time stock level for a product |
+| `GET` | `/api/v1/rules` | List registered Retail Rule Engine policies |
+| `POST` | `/api/v1/rules/evaluate` | Evaluate context against condition-based rules |
+
+---
+
+## 💡 Example API Requests & Responses
+
+### 1. Filter Headphones under ₹5,000 in Stock
 ```bash
-cd frontend
-npm run lint              # ESLint
-npm run type-check        # TypeScript
-npm test                  # Vitest
-npm run build             # Production build
+curl -X GET "http://localhost:4000/api/v1/products/search?category=headphones&max_price=5000&in_stock=true"
 ```
 
----
+**Response:**
+```json
+{
+  "products": [
+    {
+      "id": "78ec584b-01ee-48c5-927a-e4905df00fa8",
+      "sku": "HP-ANC-001",
+      "name": "SoundMax ANC Pro",
+      "description": "Flagship hybrid active noise cancelling wireless over-ear headphones with 40mm beryllium drivers.",
+      "category": "headphones",
+      "price": 4499,
+      "currency": "INR",
+      "availability": {
+        "in_stock": true,
+        "quantity": 12
+      },
+      "attributes": {
+        "anc": true,
+        "brand": "SoundMax",
+        "codec": ["LDAC", "AAC", "SBC"],
+        "wireless": true,
+        "battery_hours": 35,
+        "weight_grams": 250
+      },
+      "rating": 4.5,
+      "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80",
+      "delivery_estimate": "1-2 days"
+    }
+  ],
+  "total": 3,
+  "page": 1,
+  "limit": 20,
+  "filters": {
+    "category": "headphones",
+    "max_price": 5000,
+    "in_stock": true
+  }
+}
+```
 
-## Docker Compose
-
-Docker Compose orchestrates all services. Services are grouped into **profiles** so you can start only what you need.
-
-### Start everything
-
+### 2. Invalid Query Validation Error (Rule VAL_001)
 ```bash
-cp .env.example .env      # if not done yet
-docker compose up --build
+curl -X GET "http://localhost:4000/api/v1/products/search?query=a"
 ```
 
-### Start specific service groups
-
-```bash
-# Core services only: backend + frontend + postgres + redis
-docker compose --profile core up --build
-
-# Add MQTT broker (for agentic triggers)
-docker compose --profile core --profile messaging up --build
-
-# Infrastructure only (postgres + redis)
-docker compose --profile infra up
+**Response:**
+```json
+{
+  "error": {
+    "code": "INVALID_PARAMETER",
+    "message": "Search query must be at least 2 characters long",
+    "request_id": "req_a4c9b20e",
+    "details": [
+      {
+        "valid": false,
+        "code": "INVALID_QUERY_LENGTH",
+        "message": "Search query must be at least 2 characters long",
+        "field": "query",
+        "value": "a"
+      }
+    ]
+  }
+}
 ```
-
-### Useful commands
-
-```bash
-docker compose ps                    # list running containers
-docker compose logs -f backend       # stream backend logs
-docker compose logs -f frontend      # stream frontend logs
-docker compose exec backend bash     # shell into backend container
-docker compose down                  # stop all containers
-docker compose down -v               # stop + remove volumes (resets DB)
-```
-
-### Service URLs (local Docker)
-
-| Service | URL |
-|---|---|
-| Frontend (Nginx) | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| API Docs (Swagger) | http://localhost:8000/docs |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
-| MQTT | localhost:1883 |
 
 ---
 
-## CI Pipeline
+## ⚡ Condition-Based Rule Engine Modules
 
-The CI pipeline runs automatically on every **push to `main`** and every **pull request targeting `main`**.
-
-```
-push/PR to main
-      │
-      ├── backend-lint         → ruff + black format check
-      │         │
-      │   backend-test         → pytest (with coverage report)
-      │
-      ├── frontend-lint        → ESLint + TypeScript type-check
-      │         │
-      │   frontend-test        → Vitest
-      │         │
-      │   frontend-build       → vite build (validates bundle)
-      │
-      └── docker-build         → validates both Dockerfiles build (no push)
-                │
-          ci-success           → summary gate (required for branch protection)
-```
-
-**Key behaviours:**
-- Dependency caching (pip, npm) keeps runs fast
-- Docker layer cache shared across runs via GitHub Actions cache
-- Coverage reports uploaded as artifacts
-- All steps **fail the pipeline** if they don't pass
-
-### Setting up branch protection
-
-Go to **GitHub → Settings → Branches → Add rule** for `main`:
-- ✅ Require status checks: `CI — All checks passed`
-- ✅ Require branches to be up to date before merging
-- ✅ Require pull request reviews
+| Category | Rule ID | Condition (IF) | Action (THEN) |
+|---|---|---|---|
+| **Validation** | `VAL_001_MIN_QUERY_LENGTH` | `query.length < 2` | Reject request with structured 400 error |
+| **Validation** | `VAL_002_SANITIZE_INPUT` | Special / SQL chars detected | Sanitize unsafe characters from input string |
+| **Cart** | `CART_001_LOW_VALUE_ADDONS` | `cart_value < 1000` | Recommend complementary accessory add-ons |
+| **Cart** | `CART_002_PREMIUM_DISCOUNT` | `cart_value > 3000` | Apply flat 10% premium discount |
+| **User Behavior** | `BEHAVIOR_001_INACTIVITY_POPUP` | User inactive for 10 seconds | Trigger 5% instant discount coupon popup (`TECHKART5`) |
+| **User Behavior** | `BEHAVIOR_002_RETURNING_USER_PERSONALIZATION` | Returning user detected | Prioritize recommendations from previous browsing categories |
+| **Security** | `SEC_001_RATE_LIMIT_EXCEEDED` | Request rate > threshold | Return 429 Rate Limit Exceeded with retry timer |
+| **Security** | `SEC_002_MALFORMED_REQUEST` | Malformed payload | Return 400 Malformed Request with validation issues |
+| **Performance** | `PERF_001_CACHED_QUERY` | Repeated search query | Return cached response with low latency |
+| **Performance** | `PERF_002_LIMIT_RECOMMENDATIONS` | Recommendations requested | Cap payload to max 6 items for optimal AI inference context |
+| **Accessibility** | `A11Y_001_KEYBOARD_ACCESSIBILITY` | Action lacks keyboard handler | Enforce keyboard navigation standards (WCAG 2.1 AA) |
+| **Accessibility** | `A11Y_002_PROPER_LABELS` | Element lacks ARIA label | Enforce accessible labels and descriptors |
 
 ---
 
-## CD Pipeline
+## 🔒 Security & Quality Standards
 
-The CD pipeline runs after a **successful push to `main`** and can be triggered manually from the GitHub Actions tab.
-
-```
-Push to main
-      │
-  CI Gate (must pass)
-      │
-  Docker Build & Push → ghcr.io (GitHub Container Registry)
-      │                  ├── agentic-commerce-backend:sha-XXXXXXX
-      │                  ├── agentic-commerce-backend:latest
-      │                  ├── agentic-commerce-frontend:sha-XXXXXXX
-      │                  └── agentic-commerce-frontend:latest
-      │
-  SSH → Cloud Server
-      │   docker compose pull
-      │   docker compose up -d
-      │
-  Smoke-test health endpoints
-      │
-  Notify on failure (Slack / email)
-```
-
-> ⚠️ **Status: PLACEHOLDER** — The SSH deployment steps are commented out in `cd.yml`.
-> Configure the secrets below, then uncomment the deploy step.
-
----
-
-## GitHub Secrets
-
-See [`docs/secrets.md`](./docs/secrets.md) for the full reference table.
-
-**Quick summary of what you need to configure:**
-
-| Category | Secrets |
-|---|---|
-| Razorpay | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` |
-| AI APIs | `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `ANTHROPIC_API_KEY` |
-| Database | `DATABASE_URL`, `DB_PASSWORD` |
-| Infrastructure | `REDIS_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD` |
-| Deployment | `DEPLOY_HOST_STAGING`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH` |
-| Frontend | `VITE_API_BASE_URL`, `VITE_RAZORPAY_KEY_ID` |
-
-Configure at: **GitHub → Repository → Settings → Secrets and variables → Actions**
-
----
-
-## Adding New Services
-
-The project is designed to be extended without redesigning the pipeline.
-
-### Adding a new backend service (e.g., an AI agent worker)
-
-1. Create `services/ai-worker/` with its own `Dockerfile` and source code.
-2. Add a new service block in `docker-compose.yml` under the existing services.
-3. Add a `profiles` key to control when it starts.
-4. The CI `docker-build` job will automatically detect and validate it if you add a step in `ci.yml`.
-
-### Adding a new CI check
-
-Add a new job to `.github/workflows/ci.yml` and add it to the `needs:` list of the `ci-success` job.
-
-### Adding a new environment variable
-
-1. Add the placeholder to `.env.example` with a comment describing it.
-2. Add the real value to GitHub Secrets.
-3. Reference it in `docker-compose.yml` under the relevant service's `environment:` block.
-4. Reference it in the CD workflow `build-args` if it's needed at Docker build time.
-
----
-
-## Deployment
-
-### Once your cloud infrastructure is ready:
-
-1. **Provision a server** (VPS, EC2, DigitalOcean Droplet, etc.) with Docker installed.
-
-2. **Configure GitHub Secrets** (see table above and `docs/secrets.md`).
-
-3. **Create the deploy user on the server:**
-   ```bash
-   # On the server
-   adduser deploy
-   usermod -aG docker deploy
-   mkdir -p /opt/agentic-commerce
-   chown deploy:deploy /opt/agentic-commerce
-   ```
-
-4. **Copy docker-compose.yml and .env to the server:**
-   ```bash
-   scp docker-compose.yml deploy@YOUR_SERVER:/opt/agentic-commerce/
-   scp .env deploy@YOUR_SERVER:/opt/agentic-commerce/
-   ```
-
-5. **Uncomment the SSH deploy step** in `.github/workflows/cd.yml`.
-
-6. **Push to `main`** — the full pipeline runs automatically.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | Python 3.11, FastAPI, Uvicorn |
-| Frontend | React 18, TypeScript, Vite, Nginx |
-| Database | PostgreSQL 16 |
-| Cache / Queue | Redis 7 |
-| Messaging | Eclipse Mosquitto (MQTT) |
-| Payments | Razorpay SDK |
-| AI | OpenAI / Google Gemini / Anthropic |
-| Containerisation | Docker, Docker Compose |
-| CI/CD | GitHub Actions |
-| Registry | GitHub Container Registry (ghcr.io) |
-
----
-
-<div align="center">
-Built for the <strong>Razorpay AI Buildathon</strong> 🚀
-</div>
+- **Input Validation**: All query parameters, route params, and payloads are strictly parsed and validated using Zod.
+- **SQL Injection Prevention**: All queries execute through Prisma's parameterized query engine.
+- **Error Obfuscation**: Internal database error details and stack traces are never exposed to clients; structured `request_id` logs are kept internally.
+- **CORS & Headers**: Managed via `@fastify/cors` and `@fastify/helmet`.
+- **Strict TypeScript**: 100% strict typing with zero unvalidated `any` leaks in API boundaries.
