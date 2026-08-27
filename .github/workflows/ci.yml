@@ -1,0 +1,262 @@
+# ──────────────────────────────────────────────────────────────────────────
+#  .github/workflows/ci.yml — Agentic Commerce
+#
+#  Continuous Integration pipeline.
+#  Triggers: push to main, pull requests to main.
+#
+#  Jobs:
+#    1. backend-lint   → ruff + black format check
+#    2. backend-test   → pytest with coverage
+#    3. frontend-lint  → eslint + tsc type-check
+#    4. frontend-test  → vitest
+#    5. frontend-build → vite build (validates the bundle compiles)
+#    6. docker-build   → validates Dockerfiles build without errors
+# ──────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel redundant runs on the same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/agentic-commerce
+
+# ──────────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── 1. Backend Lint ──────────────────────────────────────────────────
+  backend-lint:
+    name: "Backend — Lint & Format"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: pip-${{ env.PYTHON_VERSION }}-
+
+      - name: Install lint dependencies
+        run: pip install ruff black
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Black format check
+        run: black --check .
+
+  # ── 2. Backend Tests ─────────────────────────────────────────────────
+  backend-test:
+    name: "Backend — Tests"
+    runs-on: ubuntu-latest
+    needs: backend-lint
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: pip-${{ env.PYTHON_VERSION }}-
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        run: pytest --cov=app --cov-report=xml --cov-report=term-missing
+        env:
+          # Keep tests hermetic — no external services needed
+          APP_ENV: test
+          DATABASE_URL: ""
+          REDIS_URL: ""
+          RAZORPAY_KEY_ID: test
+          RAZORPAY_KEY_SECRET: test
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+
+  # ── 3. Frontend Lint & Type Check ────────────────────────────────────
+  frontend-lint:
+    name: "Frontend — Lint & Type Check"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript type check
+        run: npm run type-check
+
+  # ── 4. Frontend Tests ────────────────────────────────────────────────
+  frontend-test:
+    name: "Frontend — Tests"
+    runs-on: ubuntu-latest
+    needs: frontend-lint
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  # ── 5. Frontend Build ────────────────────────────────────────────────
+  frontend-build:
+    name: "Frontend — Build"
+    runs-on: ubuntu-latest
+    needs: frontend-test
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:8000
+          VITE_RAZORPAY_KEY_ID: ci_placeholder
+          VITE_APP_ENV: production
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 3
+
+  # ── 6. Docker Build Validation ───────────────────────────────────────
+  docker-build:
+    name: "Docker — Validate Builds"
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: agentic-commerce-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: agentic-commerce-frontend:ci
+          build-args: |
+            VITE_API_BASE_URL=http://localhost:8000
+            VITE_RAZORPAY_KEY_ID=ci_placeholder
+            VITE_APP_ENV=production
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Summary gate (required status check for branch protection) ───────
+  ci-success:
+    name: "CI — All checks passed"
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build, docker-build]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.backend-test.result }}" != "success" || \
+                "${{ needs.frontend-build.result }}" != "success" || \
+                "${{ needs.docker-build.result }}" != "success" ]]; then
+            echo "One or more CI jobs failed."
+            exit 1
+          fi
+          echo "All CI checks passed ✓"

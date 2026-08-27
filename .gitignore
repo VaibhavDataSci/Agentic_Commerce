@@ -1,0 +1,84 @@
+# ─────────────────────────────────────────────
+#  Secrets & Environment
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+
+# ─────────────────────────────────────────────
+#  Python
+# ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.tox/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+env/
+*.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─────────────────────────────────────────────
+#  Node / Frontend
+# ─────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+.npm
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ─────────────────────────────────────────────
+#  Docker
+# ─────────────────────────────────────────────
+*.dockerignore
+
+# ─────────────────────────────────────────────
+#  Logs & Databases
+# ─────────────────────────────────────────────
+logs/
+*.log
+*.sqlite3
+*.db
+
+# ─────────────────────────────────────────────
+#  OS & Editor
+# ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─────────────────────────────────────────────
+#  Miscellaneous
+# ─────────────────────────────────────────────
+.cache/
+tmp/
+temp/
