@@ -1,21 +1,28 @@
-# 🛒 AgentCart — Phase 1: TechKart Merchant Foundation
+# 🛒 AgentCart — AI-Native Commerce Layer
 
 > **Razorpay AI Buildathon Project**
-> An AI-native commerce layer designed for autonomous AI buyer agents to discover, verify, and purchase products through authoritative merchant APIs.
+> An autonomous AI-powered shopping layer that allows AI buyers to discover products, evaluate fit, rank options, and create authoritative merchant carts through deterministic APIs.
 
 ---
 
-## 📌 Phase 1 Scope
+## 📌 Project Phases & Status
 
-This repository contains **Phase 1 (Merchant Foundation)** of AgentCart:
-- **Simulated Merchant**: TechKart Electronics (Consumer Electronics & Computing Store).
-- **Product Catalog**: 25+ structured products across 8 categories with deep machine-readable attributes.
-- **Inventory & Pricing**: Real-time stock availability and server-authoritative integer INR pricing stored in PostgreSQL.
-- **Merchant REST APIs**: Fastify v1 endpoints designed for AI agents without HTML scraping.
-- **Rule Engine**: Condition-based (IF/THEN) retail policy engine for validation, cart optimization, security, caching, and accessibility.
-- **Catalog UI**: Polished Next.js & Tailwind CSS catalog interface with an interactive **AI JSON Inspector**.
+| Phase | Description | Status |
+|---|---|---|
+| **Phase 1** | **TechKart Merchant Foundation** (Catalog, PostgreSQL, Real-Time Inventory, Pricing, Rule Engine) | ✅ **Completed** |
+| **Phase 2** | **AI Buyer Layer** (Gemini Natural Language Intent, Tool Sandboxing, Product Ranking, Cart Service) | ✅ **Completed** |
+| **Phase 3** | **Agentic Checkout & Razorpay Payments** (ACP, AP2, Checkout Locking, Razorpay Gateway) | ⏳ *Planned* |
 
-> **Note on Future Phases**: Phase 1 strictly implements the Merchant Foundation. AI Buyer Agents, LLM shopping loops, ACP/AP2 authorization, and Razorpay payment integration will be implemented in subsequent phases.
+---
+
+## 🚀 Key Features in Phase 2
+
+- **Natural Language Intent Parsing**: Translates unstructured user shopping prompts into strictly validated Zod intent objects with category detection and budget/feature constraints.
+- **Ambiguity Detection**: Formulates helpful clarification questions when the user's intent is too vague.
+- **Sandboxed Tool Layer**: Controls and enforces safe AI tool execution (`search_products`, `get_product`, `create_cart`, `get_cart`) with timeout guards and prompt injection defenses.
+- **Candidate Ranking & Scoring**: Evaluates candidate products against price, rating, features, and live stock, returning concise human-readable explanations.
+- **Authoritative Merchant Cart Service**: Server-side stock check and price snapshot calculation persisted in PostgreSQL.
+- **Interactive AI Shopping Interface**: Next.js interface with real-time agent execution timelines, extracted requirement chips, spotlight recommendations, and one-click cart creation.
 
 ---
 
@@ -23,76 +30,41 @@ This repository contains **Phase 1 (Merchant Foundation)** of AgentCart:
 
 | Layer | Technology |
 |---|---|
+| **AI Intelligence** | Google Gemini API (`@google/generative-ai`), Fallback Deterministic Engine |
 | **Backend API** | Node.js, Fastify, TypeScript (Strict Mode) |
 | **Database** | PostgreSQL 18, Prisma ORM |
 | **Validation** | Zod |
-| **Frontend Catalog** | Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons |
-| **Testing** | Vitest |
+| **Frontend UI** | Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons |
+| **Testing** | Vitest (38 unit and integration tests) |
 | **Orchestration** | NPM Workspaces |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture Flow
 
 ```text
-                 TECHKART
-                    │
-          ┌─────────┴─────────┐
-          ↓                   ↓
-     Frontend UI          Merchant API (Fastify)
-     (Next.js)                │
-          │                   ↓
-          │            Condition Rule Engine
-          │                   │
-          │                   ↓
-          │              PostgreSQL (Prisma)
-          │                   │
-          └─────────┬─────────┘
-                    ↓
-              Product Catalog
-              Real-Time Inventory
-              Authoritative Pricing
+USER (Natural Language)
+  ↓
+Next.js AI Buyer Interface
+  ↓
+Gemini Service (Intent Understanding)
+  ↓
+Tool Sandbox (search_products)
+  ↓
+Fastify Merchant API & PostgreSQL
+  ↓
+Candidate Products Returned
+  ↓
+Gemini Service (Ranking & Reasoning)
+  ↓
+User Accepts Product
+  ↓
+Tool Sandbox (create_cart)
+  ↓
+Authoritative Cart Created in PostgreSQL
 ```
 
-Detailed architectural specifications are documented in [`docs/architecture.md`](./docs/architecture.md).
-
----
-
-## 📦 Project Structure
-
-```text
-Agentic_Commerce/
-├── apps/
-│   ├── api/                          # Fastify + TypeScript + Prisma + Zod backend
-│   │   ├── src/
-│   │   │   ├── config/               # Env parsing, Prisma singleton
-│   │   │   ├── middleware/           # Request ID, rate limiter, error handler
-│   │   │   ├── repositories/         # Prisma repositories (Product, Merchant, Inventory)
-│   │   │   ├── routes/               # /api/v1/merchant, /api/v1/products, /api/v1/inventory, /api/v1/rules
-│   │   │   ├── rules/                # Condition-based Retail Rule Engine
-│   │   │   ├── schemas/              # Zod schemas for AI-readable DTOs
-│   │   │   ├── services/             # Catalog, Merchant, Inventory, Cache services
-│   │   │   ├── app.ts                # Fastify app builder
-│   │   │   └── server.ts             # Backend entry point
-│   │   └── tests/                    # Vitest integration and unit tests
-│   │
-│   └── web/                          # Next.js + Tailwind CSS catalog UI
-│       ├── src/
-│       │   ├── app/                  # App router (Catalog page & layout)
-│       │   ├── components/           # Navbar, MetricsBar, ProductCard, FilterBar, JsonDrawer, RuleDrawer
-│       │   └── lib/                  # API client, types, formatters
-│
-├── prisma/
-│   ├── schema.prisma                 # Merchant, Product, Inventory models
-│   └── seed.ts                       # Idempotent seed script (25 products)
-│
-├── docs/
-│   └── architecture.md               # Architecture documentation
-├── .env.example
-├── .env
-├── package.json                      # Workspace root orchestrator
-└── README.md
-```
+Detailed architectural diagrams and data contracts are documented in [`docs/architecture.md`](./docs/architecture.md).
 
 ---
 
@@ -103,13 +75,13 @@ Agentic_Commerce/
 - **PostgreSQL**: Running locally or via Docker on port `5432`
 
 ### 2. Configure Environment Variables
-Copy `.env.example` to `.env` and adjust the PostgreSQL connection string if needed:
+Copy `.env.example` to `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Default `.env`:
+`.env` configuration:
 ```env
 DATABASE_URL="postgresql://VAIBHAV@localhost:5432/agentcart"
 PORT=4000
@@ -117,6 +89,9 @@ HOST="0.0.0.0"
 NODE_ENV="development"
 CORS_ORIGIN="http://localhost:3000"
 NEXT_PUBLIC_API_BASE_URL="http://localhost:4000"
+
+# Optional: Add Google Gemini API Key for live LLM reasoning (has deterministic offline fallback if omitted)
+GEMINI_API_KEY=""
 ```
 
 ### 3. Install Dependencies
@@ -126,27 +101,17 @@ npm install
 
 ### 4. Setup Database Schema & Seed Data
 ```bash
-# Push Prisma schema to PostgreSQL
+# Push Prisma schema (Products, Inventory, Carts, CartItems)
 npm run db:push
 
-# Seed TechKart Merchant and 25 realistic electronics products
+# Seed 25 realistic electronics products
 npm run db:seed
 ```
 
 ### 5. Start Development Servers
-
-Run both Backend API and Frontend simultaneously:
 ```bash
+# Start both Backend (:4000) and Frontend (:3000) simultaneously
 npm run dev
-```
-
-Or run individually:
-```bash
-# Start Fastify Merchant API on port 4000
-npm run dev:api
-
-# Start Next.js Frontend Catalog on port 3000
-npm run dev:web
 ```
 
 ---
@@ -154,132 +119,120 @@ npm run dev:web
 ## 🧪 Running Tests & Typechecks
 
 ```bash
-# Run all Vitest test suites (API, Search, Inventory, Rule Engine)
+# Run all 38 Vitest test suites (Intent, Ranking, Cart, Security, API, Rules)
 npm run test
 
-# Run TypeScript strict typechecks across all workspaces
+# Run TypeScript strict typechecks
 npm run typecheck
 
-# Build production bundles
+# Build Next.js web application
 npm run build
 ```
 
 ---
 
-## 🔌 Merchant API Reference
+## 🔌 API & Tool Reference
 
-### Base URL: `http://localhost:4000/api/v1`
+### AI Buyer & Cart Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | Service and database health check |
-| `GET` | `/api/v1/merchant` | Merchant profile and AI-readiness metrics |
-| `GET` | `/api/v1/products` | Paginated product list |
-| `GET` | `/api/v1/products/:id` | Get single product by UUID |
-| `GET` | `/api/v1/products/search` | Search & filter products (query, category, price, stock, rating) |
-| `GET` | `/api/v1/inventory/:productId` | Real-time stock level for a product |
-| `GET` | `/api/v1/rules` | List registered Retail Rule Engine policies |
-| `POST` | `/api/v1/rules/evaluate` | Evaluate context against condition-based rules |
+| `POST` | `/api/v1/buyer/chat` | Natural-language shopping assistant (intent extraction, tool execution, ranking, timeline) |
+| `GET` | `/api/v1/buyer/tools` | List authorized tool definitions |
+| `POST` | `/api/v1/buyer/tools/execute` | Sandboxed tool execution endpoint |
+| `POST` | `/api/v1/cart` | Create cart or add product with server-side pricing & stock validation |
+| `GET` | `/api/v1/cart/:id` | Fetch existing cart details and subtotal |
+
+### Authorized AI Tool Sandbox
+
+| Tool Name | Parameters | Description |
+|---|---|---|
+| `search_products` | `category`, `min_price`, `max_price`, `in_stock`, `rating`, `query` | Queries merchant database with structured filters |
+| `get_product` | `product_id` (UUID) | Retrieves single product details & stock level |
+| `create_cart` | `product_id` (UUID), `quantity` (Int), `cart_id?` (UUID) | Verifies stock & creates cart in PostgreSQL |
+| `get_cart` | `cart_id` (UUID) | Returns cart items and calculated subtotal |
 
 ---
 
-## 💡 Example API Requests & Responses
+## 💡 Example AI Buyer Requests
 
-### 1. Filter Headphones under ₹5,000 in Stock
+### 1. Natural Language Shopping Prompt
 ```bash
-curl -X GET "http://localhost:4000/api/v1/products/search?category=headphones&max_price=5000&in_stock=true"
+curl -X POST "http://localhost:4000/api/v1/buyer/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Find me wireless ANC headphones under 5000 deliverable tomorrow"}'
 ```
 
 **Response:**
 ```json
 {
-  "products": [
-    {
-      "id": "78ec584b-01ee-48c5-927a-e4905df00fa8",
-      "sku": "HP-ANC-001",
-      "name": "SoundMax ANC Pro",
-      "description": "Flagship hybrid active noise cancelling wireless over-ear headphones with 40mm beryllium drivers.",
-      "category": "headphones",
-      "price": 4499,
-      "currency": "INR",
-      "availability": {
-        "in_stock": true,
-        "quantity": 12
-      },
-      "attributes": {
-        "anc": true,
-        "brand": "SoundMax",
-        "codec": ["LDAC", "AAC", "SBC"],
-        "wireless": true,
-        "battery_hours": 35,
-        "weight_grams": 250
-      },
-      "rating": 4.5,
-      "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&auto=format&fit=crop&q=80",
-      "delivery_estimate": "1-2 days"
-    }
-  ],
-  "total": 3,
-  "page": 1,
-  "limit": 20,
-  "filters": {
+  "session_id": "sess_8c72a1",
+  "intent": {
     "category": "headphones",
-    "max_price": 5000,
-    "in_stock": true
+    "constraints": {
+      "wireless": true,
+      "anc": true,
+      "max_price": 5000,
+      "currency": "INR",
+      "delivery_preference": "tomorrow"
+    },
+    "quantity": 1,
+    "purchase_intent": true,
+    "is_ambiguous": false
+  },
+  "timeline": [
+    { "title": "Intent understood", "status": "completed" },
+    { "title": "Searching merchant catalog", "status": "completed" },
+    { "title": "Comparing & ranking products", "status": "completed" },
+    { "title": "Product selected", "status": "completed" }
+  ],
+  "recommended_product": {
+    "id": "8a22b61b-99b1-4f96-84b8-93a408923d99",
+    "name": "SoundMax ANC Pro",
+    "price": 4499,
+    "currency": "INR",
+    "availability": { "in_stock": true, "quantity": 12 }
+  },
+  "ranking": {
+    "selected_product_id": "8a22b61b-99b1-4f96-84b8-93a408923d99",
+    "summary_reasoning": "Selected SoundMax ANC Pro as the best match for your requirements with high rating and immediate stock availability."
   }
 }
 ```
 
-### 2. Invalid Query Validation Error (Rule VAL_001)
+### 2. Create Cart via Tool or API
 ```bash
-curl -X GET "http://localhost:4000/api/v1/products/search?query=a"
+curl -X POST "http://localhost:4000/api/v1/cart" \
+  -H "Content-Type: application/json" \
+  -d '{"product_id": "8a22b61b-99b1-4f96-84b8-93a408923d99", "quantity": 1}'
 ```
 
 **Response:**
 ```json
 {
-  "error": {
-    "code": "INVALID_PARAMETER",
-    "message": "Search query must be at least 2 characters long",
-    "request_id": "req_a4c9b20e",
-    "details": [
-      {
-        "valid": false,
-        "code": "INVALID_QUERY_LENGTH",
-        "message": "Search query must be at least 2 characters long",
-        "field": "query",
-        "value": "a"
-      }
-    ]
-  }
+  "cart_id": "9f27c841-e972-4d2b-bbbb-f2416b9a8421",
+  "status": "ACTIVE",
+  "subtotal": 4499,
+  "currency": "INR",
+  "item_count": 1,
+  "items": [
+    {
+      "product_id": "8a22b61b-99b1-4f96-84b8-93a408923d99",
+      "product_name": "SoundMax ANC Pro",
+      "sku": "HP-ANC-001",
+      "unit_price": 4499,
+      "quantity": 1,
+      "total_price": 4499
+    }
+  ]
 }
 ```
 
 ---
 
-## ⚡ Condition-Based Rule Engine Modules
+## 🔒 Security & Sandboxing Guarantees
 
-| Category | Rule ID | Condition (IF) | Action (THEN) |
-|---|---|---|---|
-| **Validation** | `VAL_001_MIN_QUERY_LENGTH` | `query.length < 2` | Reject request with structured 400 error |
-| **Validation** | `VAL_002_SANITIZE_INPUT` | Special / SQL chars detected | Sanitize unsafe characters from input string |
-| **Cart** | `CART_001_LOW_VALUE_ADDONS` | `cart_value < 1000` | Recommend complementary accessory add-ons |
-| **Cart** | `CART_002_PREMIUM_DISCOUNT` | `cart_value > 3000` | Apply flat 10% premium discount |
-| **User Behavior** | `BEHAVIOR_001_INACTIVITY_POPUP` | User inactive for 10 seconds | Trigger 5% instant discount coupon popup (`TECHKART5`) |
-| **User Behavior** | `BEHAVIOR_002_RETURNING_USER_PERSONALIZATION` | Returning user detected | Prioritize recommendations from previous browsing categories |
-| **Security** | `SEC_001_RATE_LIMIT_EXCEEDED` | Request rate > threshold | Return 429 Rate Limit Exceeded with retry timer |
-| **Security** | `SEC_002_MALFORMED_REQUEST` | Malformed payload | Return 400 Malformed Request with validation issues |
-| **Performance** | `PERF_001_CACHED_QUERY` | Repeated search query | Return cached response with low latency |
-| **Performance** | `PERF_002_LIMIT_RECOMMENDATIONS` | Recommendations requested | Cap payload to max 6 items for optimal AI inference context |
-| **Accessibility** | `A11Y_001_KEYBOARD_ACCESSIBILITY` | Action lacks keyboard handler | Enforce keyboard navigation standards (WCAG 2.1 AA) |
-| **Accessibility** | `A11Y_002_PROPER_LABELS` | Element lacks ARIA label | Enforce accessible labels and descriptors |
-
----
-
-## 🔒 Security & Quality Standards
-
-- **Input Validation**: All query parameters, route params, and payloads are strictly parsed and validated using Zod.
-- **SQL Injection Prevention**: All queries execute through Prisma's parameterized query engine.
-- **Error Obfuscation**: Internal database error details and stack traces are never exposed to clients; structured `request_id` logs are kept internally.
-- **CORS & Headers**: Managed via `@fastify/cors` and `@fastify/helmet`.
-- **Strict TypeScript**: 100% strict typing with zero unvalidated `any` leaks in API boundaries.
+- **No Direct Database Access**: Gemini only interacts through validated functions in the Tool Registry.
+- **Tool Allowlist**: Any unlisted tool call is rejected with a 403 status.
+- **Untrusted Content Sanitization**: Product descriptions and reviews are sanitized to prevent indirect prompt injection attacks.
+- **Authoritative Truth**: All pricing and stock quantities are resolved directly inside PostgreSQL.

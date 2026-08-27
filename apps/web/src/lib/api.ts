@@ -1,4 +1,12 @@
-import { MerchantProfile, Product, ProductListResponse, ProductSearchFilters, RuleEngineReport } from "./types";
+import {
+  MerchantProfile,
+  Product,
+  ProductListResponse,
+  ProductSearchFilters,
+  RuleEngineReport,
+  BuyerChatResponse,
+  CartResponse
+} from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
@@ -50,4 +58,42 @@ export async function evaluateRules(context: Record<string, any>, category?: str
   }
   const data = await res.json();
   return data.report;
+}
+
+// --- Phase 2: AI Buyer APIs ---
+
+export async function sendBuyerChat(prompt: string, sessionId?: string): Promise<BuyerChatResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/buyer/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, session_id: sessionId })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `AI Buyer request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function createCart(productId: string, quantity = 1, cartId?: string): Promise<CartResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/cart`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ product_id: productId, quantity, cart_id: cartId })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to add product to cart (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchCart(cartId: string): Promise<CartResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/cart/${cartId}`, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Cart not found: ${res.statusText}`);
+  }
+  return res.json();
 }

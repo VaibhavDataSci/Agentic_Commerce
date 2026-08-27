@@ -10,17 +10,21 @@ import { JsonDrawer } from "../components/JsonDrawer";
 import { RuleEngineDrawer } from "../components/RuleEngineDrawer";
 import { CartOptimizerModal } from "../components/CartOptimizerModal";
 import { InactivityPopup } from "../components/InactivityPopup";
+import { AiBuyerInterface } from "../components/buyer/AiBuyerInterface";
 import { fetchMerchantProfile, fetchProducts } from "../lib/api";
 import { MerchantProfile, Product } from "../lib/types";
-import { AlertCircle, RefreshCw, Layers } from "lucide-react";
+import { AlertCircle, RefreshCw, Layers, Bot, Store } from "lucide-react";
 
 interface CartItem {
   product: Product;
   quantity: number;
 }
 
-export default function CatalogPage() {
-  // State
+export default function HomePage() {
+  // Navigation Mode: "ai_buyer" or "merchant_catalog"
+  const [activeTab, setActiveTab] = useState<"ai_buyer" | "merchant_catalog">("ai_buyer");
+
+  // Merchant & Catalog State
   const [merchant, setMerchant] = useState<MerchantProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -160,98 +164,138 @@ export default function CatalogPage() {
         onOpenRules={() => setIsRulesOpen(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content Container */}
       <main className="mx-auto flex-1 w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-        {/* AI Commerce Readiness Banner */}
-        <AiReadyBanner />
+        {/* Mode Switcher Tabs */}
+        <div className="flex items-center justify-center">
+          <div className="inline-flex rounded-xl border border-indigo-500/30 bg-[#090e1f] p-1.5 shadow-xl">
+            <button
+              onClick={() => setActiveTab("ai_buyer")}
+              className={`flex items-center space-x-2 rounded-lg px-5 py-2 text-xs sm:text-sm font-bold transition-all ${
+                activeTab === "ai_buyer"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Bot className="h-4 w-4" />
+              <span>Phase 2: AI Buyer Agent</span>
+            </button>
 
-        {/* Real-time Merchant Metrics */}
-        <MetricsBar metrics={merchant?.metrics || null} loading={!merchant} />
-
-        {/* Filter and Search Bar */}
-        <FilterBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-          categories={categories}
-          inStockOnly={inStockOnly}
-          onInStockToggle={setInStockOnly}
-          maxPrice={maxPrice}
-          onMaxPriceChange={setMaxPrice}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          onReset={handleResetFilters}
-        />
-
-        {/* Catalog Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Layers className="h-4 w-4 text-indigo-400" />
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                Product Catalog ({totalCount} items)
-              </h2>
-            </div>
-            <span className="text-xs text-slate-400">
-              Authoritative Backend: <span className="font-semibold text-emerald-400">PostgreSQL</span>
-            </span>
+            <button
+              onClick={() => setActiveTab("merchant_catalog")}
+              className={`flex items-center space-x-2 rounded-lg px-5 py-2 text-xs sm:text-sm font-bold transition-all ${
+                activeTab === "merchant_catalog"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Store className="h-4 w-4" />
+              <span>Phase 1: Merchant Catalog UI</span>
+            </button>
           </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-300 flex items-center space-x-3">
-              <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
-              <div>
-                <p className="text-xs font-bold">API Validation Error</p>
-                <p className="text-xs">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Loading State */}
-          {loading ? (
-            <div className="py-20 text-center text-slate-400 space-y-3">
-              <RefreshCw className="h-8 w-8 mx-auto animate-spin text-indigo-400" />
-              <p className="text-xs font-semibold">Querying TechKart Merchant API...</p>
-            </div>
-          ) : products.length === 0 && !error ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/30 py-16 text-center text-slate-400 space-y-2">
-              <Layers className="h-10 w-10 mx-auto text-slate-600" />
-              <p className="text-sm font-bold text-white">No products found matching filters</p>
-              <p className="text-xs text-slate-500">
-                Try widening your price range, selecting &quot;All Items&quot;, or clearing the search bar.
-              </p>
-              <button
-                onClick={handleResetFilters}
-                className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500"
-              >
-                Reset Filters
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onInspectJson={setInspectProduct}
-                  onAddToCart={handleAddToCart}
-                />
-              ))}
-            </div>
-          )}
         </div>
+
+        {/* Tab 1: AI Buyer Agent Interface (Phase 2) */}
+        {activeTab === "ai_buyer" && (
+          <AiBuyerInterface onInspectJson={setInspectProduct} />
+        )}
+
+        {/* Tab 2: Merchant Catalog View (Phase 1) */}
+        {activeTab === "merchant_catalog" && (
+          <div className="space-y-6">
+            {/* AI Commerce Readiness Banner */}
+            <AiReadyBanner />
+
+            {/* Real-time Merchant Metrics */}
+            <MetricsBar metrics={merchant?.metrics || null} loading={!merchant} />
+
+            {/* Filter and Search Bar */}
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+              categories={categories}
+              inStockOnly={inStockOnly}
+              onInStockToggle={setInStockOnly}
+              maxPrice={maxPrice}
+              onMaxPriceChange={setMaxPrice}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              onReset={handleResetFilters}
+            />
+
+            {/* Catalog Grid */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Layers className="h-4 w-4 text-indigo-400" />
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Product Catalog ({totalCount} items)
+                  </h2>
+                </div>
+                <span className="text-xs text-slate-400">
+                  Authoritative Backend:{" "}
+                  <span className="font-semibold text-emerald-400">PostgreSQL</span>
+                </span>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-300 flex items-center space-x-3">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />
+                  <div>
+                    <p className="text-xs font-bold">API Validation Error</p>
+                    <p className="text-xs">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {loading ? (
+                <div className="py-20 text-center text-slate-400 space-y-3">
+                  <RefreshCw className="h-8 w-8 mx-auto animate-spin text-indigo-400" />
+                  <p className="text-xs font-semibold">Querying TechKart Merchant API...</p>
+                </div>
+              ) : products.length === 0 && !error ? (
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/30 py-16 text-center text-slate-400 space-y-2">
+                  <Layers className="h-10 w-10 mx-auto text-slate-600" />
+                  <p className="text-sm font-bold text-white">No products found matching filters</p>
+                  <p className="text-xs text-slate-500">
+                    Try widening your price range, selecting &quot;All Items&quot;, or clearing the search bar.
+                  </p>
+                  <button
+                    onClick={handleResetFilters}
+                    className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {products.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onInspectJson={setInspectProduct}
+                      onAddToCart={handleAddToCart}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="mt-12 border-t border-slate-800/80 bg-[#060a16] py-6 text-center text-xs text-slate-500">
         <div className="mx-auto max-w-7xl px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>
-            TechKart Merchant Foundation &bull; AgentCart (Phase 1) &bull; Razorpay AI Buildathon
+            AgentCart &bull; Phase 1 (Merchant) + Phase 2 (AI Buyer) &bull; Razorpay AI Buildathon
           </p>
           <p className="text-[11px] text-slate-600">
-            Source of Truth: Fastify REST API &bull; PostgreSQL 18 &bull; Strict Schema Contracts
+            Source of Truth: Fastify REST API &bull; PostgreSQL 18 &bull; Gemini-Powered Intent &amp; Ranking
           </p>
         </div>
       </footer>

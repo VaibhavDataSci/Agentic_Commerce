@@ -13,7 +13,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   CORS_ORIGIN: z.string().default("*"),
   RATE_LIMIT_MAX: z.coerce.number().default(100),
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000)
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
+  GEMINI_API_KEY: z.string().optional().default("")
 });
 
 export const env = envSchema.parse({
@@ -23,5 +24,6 @@ export const env = envSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
   CORS_ORIGIN: process.env.CORS_ORIGIN,
   RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX,
-  RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS
+  RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || ""
 });

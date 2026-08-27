@@ -16,28 +16,30 @@ model Merchant {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   products    Product[]
+  carts       Cart[]
 
   @@map("merchants")
 }
 
 model Product {
-  id               String     @id @default(uuid())
+  id               String      @id @default(uuid())
   merchantId       String
-  merchant         Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  sku              String     @unique
+  merchant         Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  sku              String      @unique
   name             String
   description      String
   category         String
-  price            Int        // Price in smallest currency unit (e.g. INR integer)
-  currency         String     @default("INR")
-  attributes       Json       // Structured attributes: { wireless, anc, battery_hours, ram, etc. }
-  rating           Float      @default(0.0)
+  price            Int         // Price in smallest currency unit (e.g. INR integer)
+  currency         String      @default("INR")
+  attributes       Json        // Structured attributes: { wireless, anc, battery_hours, ram, etc. }
+  rating           Float       @default(0.0)
   imageUrl         String
   deliveryEstimate String
-  status           String     @default("ACTIVE")
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  status           String      @default("ACTIVE")
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
   inventory        Inventory?
+  cartItems        CartItem[]
 
   @@index([category])
   @@index([price])
@@ -56,4 +58,36 @@ model Inventory {
   updatedAt         DateTime @updatedAt
 
   @@map("inventories")
+}
+
+model Cart {
+  id          String     @id @default(uuid())
+  merchantId  String
+  merchant    Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  status      String     @default("ACTIVE") // ACTIVE, ABANDONED, LOCKED
+  subtotal    Int        @default(0)        // Server-calculated integer INR
+  currency    String     @default("INR")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  items       CartItem[]
+
+  @@index([merchantId])
+  @@index([status])
+  @@map("carts")
+}
+
+model CartItem {
+  id         String   @id @default(uuid())
+  cartId     String
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  unitPrice  Int      // Snapshot of unit price at cart addition
+  totalPrice Int      // quantity * unitPrice
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
 }

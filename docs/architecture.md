@@ -1,98 +1,131 @@
-# Architecture Documentation: AgentCart Merchant Foundation (Phase 1)
+# Architecture Documentation: AgentCart AI Commerce Platform
 
 ## Overview
 
-AgentCart is an **AI-native commerce layer** being developed for the Razorpay AI Buildathon.
+AgentCart is an **AI-native commerce platform** designed for autonomous shopping agents to discover products, evaluate fit, create carts, and ultimately execute payments over merchant APIs.
 
-**Phase 1 focuses exclusively on the Merchant Foundation**: simulating an authoritative electronics merchant (**TechKart**) that exposes structured, AI-readable APIs, real-time inventory, strict pricing rules, and a condition-based retail policy engine.
+- **Phase 1**: Merchant Foundation (TechKart electronic catalog, PostgreSQL persistence, real-time inventory, strict INR pricing, rule engine).
+- **Phase 2**: AI Buyer Layer (Gemini natural-language intent parser, sandboxed tool execution, candidate ranking engine, and merchant-authoritative cart service).
 
 ---
 
-## High-Level Architecture
+## High-Level Architecture (Phase 1 & Phase 2)
 
 ```text
-                     +---------------------------------------+
-                     |         FUTURE AI AGENT LAYER         |
-                     |  (Discovery, Reasoning, Auth, ACP)    |
-                     |        [Planned for Phase 2]          |
-                     +---------------------------------------+
-                                         │
-                         (REST v1 / JSON Schema Contract)
-                                         ▼
-+-----------------------------------------------------------------------------------+
-|                            TECHKART MERCHANT PLATFORM                             |
-|                                                                                   |
-|  +--------------------------------+       +------------------------------------+  |
-|  |       Frontend Catalog UI      |       |       Fastify Merchant API         |  |
-|  |     (Next.js + Tailwind CSS)   |       |      (Node.js + TypeScript)        |  |
-|  +--------------------------------+       +------------------------------------+  |
-|                 │                                    │                            |
-|                 └───────────────────┬────────────────┘                            |
-|                                     │ (REST API & Rule Engine)                    |
-|                                     ▼                                             |
-|                   +------------------------------------+                          |
-|                   |    Condition-Based Rule Engine     |                          |
-|                   |  (Validation, Cart, Security, etc) |                          |
-|                   +------------------------------------+                          |
-|                                     │                                             |
-|                                     ▼                                             |
-|                   +------------------------------------+                          |
-|                   |       Prisma ORM & Data Layer      |                          |
-|                   +------------------------------------+                          |
-|                                     │                                             |
-+-------------------------------------┼---------------------------------------------+
+                                  USER
+                                   │
+                         (Natural Language Prompt)
+                                   ▼
+             +-------------------------------------------+
+             |    AI Buyer Shopping Interface (Next.js)  |
+             +-------------------------------------------+
+                                   │
+                    (POST /api/v1/buyer/chat)
+                                   ▼
++───────────────────────────────────────────────────────────────────+
+│                       AI BUYER LAYER (GEMINI)                     │
+│                                                                   │
+│  +-----------------------+           +-------------------------+  │
+│  |  Intent Understanding |           | Product Ranking Engine  |  │
+│  | (Category/Constraints)|           | (Score 0.00-1.00 & Why) |  │
+│  +-----------------------+           +-------------------------+  │
+│             │                                     ▲               │
+│             ▼                                     │               │
+│  +─────────────────────────────────────────────────────────────+  │
+│  |                Controlled Tool Sandbox Layer                |  │
+│  |   - search_products (Filters)                               |  │
+│  |   - get_product (UUID)                                      |  │
+│  |   - create_cart (Product UUID, Quantity)                    |  │
+│  |   - get_cart (Cart UUID)                                    |  │
+│  +─────────────────────────────────────────────────────────────+  │
++───────────────────────────────────┬───────────────────────────────+
+                                    │ (Internal Service Invocations)
+                                    ▼
++───────────────────────────────────────────────────────────────────+
+│                    TECHKART MERCHANT CORE (FASTIFY)               │
+│                                                                   │
+│  +--------------------+   +-------------------+   +------------+  │
+│  |  Catalog Service   |   |   Cart Service    |   | RuleEngine |  │
+│  +--------------------+   +-------------------+   +------------+  │
+│            │                        │                   │         │
+│            └────────────────────────┼───────────────────┘         │
+│                                     ▼                             │
+│                         +-----------------------+                 │
+│                         |       Prisma ORM      |                 │
+│                         +-----------------------+                 │
++─────────────────────────────────────┼─────────────────────────────+
                                       │
                                       ▼
                        +-----------------------------+
                        |    PostgreSQL Database      |
-                       |  (Authoritative Truth)      |
+                       | (Products, Inventory, Carts)|
                        +-----------------------------+
 ```
 
 ---
 
-## Core Architecture Principles
+## 1. Natural Language to Structured Intent Flow
 
-### 1. Merchant as Authoritative Source of Truth
-- **Never trust client state**: Product pricing, real-time availability, and stock decrements are verified and resolved server-side.
-- **Relational Integrity**: The `Product` model strictly ties to `Inventory` via 1-to-1 foreign keys and unique SKU constraints.
+When a user submits a shopping query (e.g. *"Find me wireless ANC headphones under ₹5,000 preferably deliverable tomorrow"*):
 
-### 2. AI-Readable Data Models (Machine-Readable by Design)
-Traditional e-commerce platforms embed critical specifications inside free-form HTML descriptions, requiring screen scrapers or vision models to parse product details. TechKart normalizes all core attributes into explicit, typed JSON payloads:
+1. **Intent Extraction (`gemini.service.ts`)**:
+   - Parses the request into a strictly validated Zod object:
+     ```json
+     {
+       "category": "headphones",
+       "constraints": {
+         "wireless": true,
+         "anc": true,
+         "max_price": 5000,
+         "currency": "INR",
+         "delivery_preference": "tomorrow"
+       },
+       "quantity": 1,
+       "purchase_intent": true,
+       "is_ambiguous": false
+     }
+     ```
+   - If the request is too vague (e.g. *"buy me tech stuff"*), the engine flags `is_ambiguous: true` and generates a clarification question without hallucinating.
 
-```json
-{
-  "id": "c1f7b0e1-4c6e-44db-a88a-2c83c271295b",
-  "sku": "HP-ANC-001",
-  "name": "SoundMax ANC Pro",
-  "category": "headphones",
-  "price": 4499,
-  "currency": "INR",
-  "availability": {
-    "in_stock": true,
-    "quantity": 12
-  },
-  "attributes": {
-    "brand": "SoundMax",
-    "wireless": true,
-    "anc": true,
-    "battery_hours": 35,
-    "bluetooth_version": "5.3",
-    "codec": ["LDAC", "AAC", "SBC"]
-  },
-  "rating": 4.5,
-  "delivery_estimate": "1-2 days"
-}
-```
+2. **Tool Execution (`tool-registry.ts`)**:
+   - Calls `search_products({ category: "headphones", max_price: 5000, in_stock: true })`.
+   - The tool executes against `CatalogService`, ensuring live availability checks directly from PostgreSQL.
 
-### 3. Layer Separation
-- **`apps/web` (Frontend)**: Pure consumer of the Fastify REST APIs (`@agentcart/web`). Contains no hardcoded product catalogues or database credentials.
-- **`apps/api` (Backend)**: Fastify server exposing deterministic, Zod-validated endpoints with rate limiting, request ID tracing, and consistent error envelopes.
-- **`prisma/` (Database & Seed)**: PostgreSQL schema definitions and idempotent seeding mechanism for 25+ realistic consumer electronics.
+3. **Candidate Ranking & Scoring**:
+   - Evaluates each candidate against constraint fulfillment, stock, pricing, ratings, and delivery estimates.
+   - Assigns a match confidence score ($0.00$ to $1.00$).
+   - Returns concise, user-facing reasoning for why the top product was selected.
 
 ---
 
-## Database Entity Relationship Model
+## 2. Controlled Tool Layer & Sandboxing
+
+Gemini does **NOT** directly execute arbitrary code, database queries, or external network requests. All actions are routed through a sandboxed **Tool Registry** enforcing:
+
+| Tool | Parameters (Zod Validated) | Execution Service | Behavior |
+|---|---|---|---|
+| `search_products` | `category`, `min/max_price`, `in_stock`, `rating`, `query` | `CatalogService` | Queries active database products |
+| `get_product` | `product_id` (UUID) | `CatalogService` | Retrieves single product & live stock |
+| `create_cart` | `product_id` (UUID), `quantity`, `cart_id?` | `CartService` | Authoritative stock check + DB cart creation |
+| `get_cart` | `cart_id` (UUID) | `CartService` | Fetches active cart summary |
+
+**Security Guarantees**:
+- Strict allowlist: Any unlisted tool call (e.g. `delete_db`, `pay_now`, `fetch_url`) is immediately rejected with a 403 error.
+- Max execution timeout: 10,000 ms limit per tool call.
+- Untrusted product text sanitization: Product descriptions are scrubbed to neutralize indirect prompt injection attacks.
+
+---
+
+## 3. Authoritative Cart Lifecycle & Pricing Truth
+
+The AI Buyer is **incapable of dictating product prices or falsifying inventory**:
+- When `create_cart` is triggered, the `CartService` looks up the product directly in PostgreSQL.
+- Unit prices and total subtotals are calculated strictly on the backend.
+- If an item's `availableQuantity < requestedQuantity`, the cart addition is aborted with a `PRODUCT_OUT_OF_STOCK` error.
+
+---
+
+## 4. Entity Relationship Diagram (Phase 1 + Phase 2)
 
 ```text
 +-----------------------+              +------------------------------------+
@@ -100,87 +133,41 @@ Traditional e-commerce platforms embed critical specifications inside free-form 
 +-----------------------+              +------------------------------------+
 | id (UUID, PK)         | 1          * | id (UUID, PK)                      |
 | name (String)         |<------------>| merchantId (UUID, FK -> Merchant)  |
-| description (String)  |              | sku (String, Unique, Indexed)      |
-| currency (String)     |              | name (String)                      |
-| status (String)       |              | description (String)               |
-| createdAt (DateTime)  |              | category (String, Indexed)         |
-| updatedAt (DateTime)  |              | price (Int, INR, Indexed)          |
-+-----------------------+              | currency (String)                  |
-                                       | attributes (Json)                  |
-                                       | rating (Float, Indexed)            |
-                                       | imageUrl (String)                  |
-                                       | deliveryEstimate (String)          |
-                                       | status (String, Indexed)           |
-                                       | createdAt (DateTime)               |
-                                       | updatedAt (DateTime)               |
-                                       +------------------------------------+
-                                                         │ 1
-                                                         │
-                                                         │ 1
-                                       +------------------------------------+
-                                       |             Inventory              |
-                                       +------------------------------------+
-                                       | id (UUID, PK)                      |
-                                       | productId (UUID, Unique, FK)       |
-                                       | availableQuantity (Int)            |
-                                       | reservedQuantity (Int)             |
-                                       | updatedAt (DateTime)               |
-                                       +------------------------------------+
+| currency (String)     |              | sku (String, Unique, Indexed)      |
++-----------------------+              | name (String)                      |
+           │ 1                         | category (String, Indexed)         |
+           │                           | price (Int, INR, Indexed)          |
+           │                           | attributes (Json)                  |
+           │ *                         | rating (Float, Indexed)            |
++-----------------------+              | deliveryEstimate (String)          |
+|         Cart          |              +------------------------------------+
++-----------------------+                                │ 1
+| id (UUID, PK)         |                                │
+| merchantId (UUID, FK) |                                │ 1
+| status (String)       |              +------------------------------------+
+| subtotal (Int, INR)   |              |             Inventory              |
+| currency (String)     |              +------------------------------------+
++-----------------------+              | productId (UUID, Unique, FK)       |
+           │ 1                         | availableQuantity (Int)            |
+           │                           | reservedQuantity (Int)             |
+           │ *                         +------------------------------------+
++-----------------------+                                │ 1
+|       CartItem        |                                │
++-----------------------+                                │
+| id (UUID, PK)         |                                │ *
+| cartId (UUID, FK)     |                                │
+| productId (UUID, FK)  |<───────────────────────────────┘
+| quantity (Int)        |
+| unitPrice (Int, INR)  |
+| totalPrice (Int, INR) |
++-----------------------+
 ```
 
 ---
 
-## Condition-Based Retail Rule Engine
+## 5. Phase 3 Integration Readiness
 
-The platform incorporates a modular, condition-based (`IF <condition> THEN <action>`) rule engine:
-
-```text
-                   Context (Query, Cart, Rate, Inactivity, A11Y)
-                                         │
-                                         ▼
-                            +--------------------------+
-                            |     RuleEngine.eval()    |
-                            +--------------------------+
-                                         │
-             ┌───────────────────────────┼───────────────────────────┐
-             ▼                           ▼                           ▼
-    [1. Validation]               [2. Cart Opt.]            [3. User Behavior]
-  - Query length >= 2           - Cart < 1000: Add-ons     - Inactive 10s: Popup
-  - Input Sanitization          - Cart > 3000: 10% Off     - Returning user boost
-             │                           │                           │
-             ▼                           ▼                           ▼
-    [4. Security]                 [5. Performance]          [6. Accessibility]
-  - Rate limiting (429)         - Query Caching (TTL)      - Keyboard operability
-  - Malformed payload (400)     - Cap recommendations: 6   - ARIA labels required
-```
-
----
-
-## API Contract & Error Handling
-
-All API errors return a uniform envelope containing a unique `request_id` for deterministic debugging:
-
-```json
-{
-  "error": {
-    "code": "INVALID_PARAMETER",
-    "message": "Search query must be at least 2 characters long",
-    "request_id": "req_8b9a1e4c",
-    "details": [
-      {
-        "field": "query",
-        "value": "x"
-      }
-    ]
-  }
-}
-```
-
----
-
-## Phase 2 Readiness
-
-In Phase 2, the AI Buyer Agent will interact directly with:
-1. `GET /api/v1/merchant` — Verify seller credentials and catalog readiness.
-2. `GET /api/v1/products/search` — Search by natural constraints (`category`, `max_price`, `in_stock`, `attributes`).
-3. `GET /api/v1/inventory/:productId` — Confirm real-time item availability before initiating checkout.
+With the AI Buyer capable of translating natural language requests into ranked candidates and verified merchant carts, Phase 3 will introduce:
+- **Agent Checkout Protocol (ACP)**: Locking cart state and creating an ephemeral checkout session.
+- **Agent Payment Protocol (AP2)**: User payment authorization and spending limit validation.
+- **Razorpay Settlement**: Executing programmatic Razorpay payment verification and order confirmation.

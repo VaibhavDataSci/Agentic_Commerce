@@ -29,25 +29,26 @@ export const ProductSearchQuerySchema = z.object({
   query: z.string().optional(),
   category: z.string().optional(),
   min_price: z
-    .string()
+    .union([z.number(), z.string()])
     .optional()
     .transform((val) => (val !== undefined ? Number(val) : undefined))
     .pipe(z.number().nonnegative().optional()),
   max_price: z
-    .string()
+    .union([z.number(), z.string()])
     .optional()
     .transform((val) => (val !== undefined ? Number(val) : undefined))
     .pipe(z.number().nonnegative().optional()),
   in_stock: z
-    .string()
+    .union([z.boolean(), z.string()])
     .optional()
     .transform((val) => {
       if (val === undefined) return undefined;
+      if (typeof val === "boolean") return val;
       return val === "true" || val === "1";
     })
     .pipe(z.boolean().optional()),
   rating: z
-    .string()
+    .union([z.number(), z.string()])
     .optional()
     .transform((val) => (val !== undefined ? Number(val) : undefined))
     .pipe(z.number().min(0).max(5).optional()),
@@ -56,12 +57,12 @@ export const ProductSearchQuerySchema = z.object({
     .optional()
     .default("rating_desc"),
   page: z
-    .string()
+    .union([z.number(), z.string()])
     .optional()
     .transform((val) => (val !== undefined ? Math.max(1, Number(val)) : 1))
     .pipe(z.number().int().positive().default(1)),
   limit: z
-    .string()
+    .union([z.number(), z.string()])
     .optional()
     .transform((val) => (val !== undefined ? Math.min(50, Math.max(1, Number(val))) : 20))
     .pipe(z.number().int().positive().default(20))
