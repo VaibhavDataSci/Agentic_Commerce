@@ -174,6 +174,28 @@ Rules:
     }
   }
 
+  /**
+   * 3. Authoritative Checkout Explanation
+   * Formats the merchant-calculated checkout breakdown clearly for user approval
+   */
+  public formatCheckoutExplanation(checkout: {
+    items: Array<{ product_name?: string; name?: string; quantity: number }>;
+    subtotal: number;
+    tax: number;
+    shipping: number;
+    discount: number;
+    total: number;
+  }): string {
+    const itemSummary = checkout.items
+      .map((i) => `${i.quantity}x ${i.product_name || (i as any).name || "Item"}`)
+      .join(", ");
+
+    const shippingText = checkout.shipping === 0 ? "free" : `₹${checkout.shipping.toLocaleString("en-IN")}`;
+    const discountText = checkout.discount > 0 ? `, discount is -₹${checkout.discount.toLocaleString("en-IN")}` : "";
+
+    return `Your TechKart checkout is ready for ${itemSummary}. Subtotal is ₹${checkout.subtotal.toLocaleString("en-IN")}, tax is ₹${checkout.tax.toLocaleString("en-IN")}, shipping is ${shippingText}${discountText}. Your final authoritative total is ₹${checkout.total.toLocaleString("en-IN")}. Please review and approve to proceed.`;
+  }
+
   // --- Deterministic Fallback & Offline Engine ---
 
   public fallbackExtractIntent(userPrompt: string): StructuredIntent {

@@ -1,0 +1,337 @@
+openapi: 3.0.3
+info:
+  title: AgentCart ACP Checkout API
+  description: Official Agentic Commerce Protocol (ACP) compliant stateful checkout API specification for TechKart Merchant.
+  version: 1.0.0
+servers:
+  - url: http://localhost:4000
+    description: Local development server
+
+paths:
+  /checkout_sessions:
+    post:
+      summary: Create ACP Checkout Session
+      description: Initializes a stateful checkout session with authoritative server-calculated line items, tax, shipping, and discount.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          required: false
+          description: Unique client key to guarantee idempotent session creation.
+        - in: header
+          name: x-agent-session-id
+          schema:
+            type: string
+          required: false
+          description: Active AI agent session ID for tracing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutSessionInput'
+      responses:
+        '201':
+          description: Checkout session created successfully in READY_FOR_PAYMENT state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          description: Validation error or product unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Catalog price changed from cart snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceChangedErrorResponse'
+
+  /checkout_sessions/{id}:
+    get:
+      summary: Retrieve Checkout Session
+      description: Retrieves the current authoritative state, snapshot integrity hash, and line items for a checkout session.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The checkout session UUID.
+      responses:
+        '200':
+          description: Checkout session details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '404':
+          description: Checkout session not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Update Checkout Session
+      description: Modifies items, quantity, or fulfillment/shipping options with live server recalculation and stock revalidation.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          required: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCheckoutSessionInput'
+      responses:
+        '200':
+          description: Updated checkout session with recomputed authoritative totals.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          description: Invalid state transition or insufficient inventory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /checkout_sessions/{id}/complete:
+    post:
+      summary: Request Checkout Completion
+      description: Transitions checkout session from READY_FOR_PAYMENT to COMPLETED after integrity hash verification.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Checkout completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          description: Invalid state or integrity violation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /checkout_sessions/{id}/cancel:
+    post:
+      summary: Cancel Checkout Session
+      description: Cancels an active checkout session.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Checkout session canceled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          description: Cannot cancel completed checkout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateCheckoutSessionInput:
+      type: object
+      properties:
+        cart_id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            type: object
+            required: [product_id, quantity]
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+        agent_session_id:
+          type: string
+        metadata:
+          type: object
+
+    UpdateCheckoutSessionInput:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [product_id, quantity]
+            properties:
+              product_id:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+        fulfillment:
+          type: object
+          properties:
+            selected_shipping_option_id:
+              type: string
+
+    CheckoutItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        product_id:
+          type: string
+        product_name:
+          type: string
+        sku:
+          type: string
+        unit_price:
+          type: integer
+        quantity:
+          type: integer
+        total_price:
+          type: integer
+        image_url:
+          type: string
+
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        checkout_id:
+          type: string
+        id:
+          type: string
+        cart_id:
+          type: string
+          nullable: true
+        merchant_id:
+          type: string
+        status:
+          type: string
+          enum: [CREATED, INCOMPLETE, READY_FOR_PAYMENT, COMPLETED, CANCELED, EXPIRED]
+        currency:
+          type: string
+          example: INR
+        subtotal:
+          type: integer
+          example: 4499
+        tax:
+          type: integer
+          example: 450
+        shipping:
+          type: integer
+          example: 0
+        discount:
+          type: integer
+          example: 0
+        total:
+          type: integer
+          example: 4949
+        item_count:
+          type: integer
+          example: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckoutItemResponse'
+        integrity_hash:
+          type: string
+          description: Cryptographic SHA-256 integrity hash
+        capabilities:
+          type: object
+          properties:
+            can_update_quantity:
+              type: boolean
+            can_update_fulfillment:
+              type: boolean
+            can_cancel:
+              type: boolean
+            can_complete:
+              type: boolean
+            payment_methods_supported:
+              type: array
+              items:
+                type: string
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            request_id:
+              type: string
+
+    PriceChangedErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: PRICE_CHANGED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                product_id:
+                  type: string
+                previous_price:
+                  type: integer
+                current_price:
+                  type: integer

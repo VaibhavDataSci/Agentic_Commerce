@@ -157,3 +157,215 @@ export interface CartResponse {
   created_at: string;
   updated_at: string;
 }
+
+// --- Phase 3: Agentic Checkout Types (ACP) ---
+
+export type CheckoutStatus =
+  | "CREATED"
+  | "INCOMPLETE"
+  | "READY_FOR_PAYMENT"
+  | "COMPLETED"
+  | "CANCELED"
+  | "EXPIRED";
+
+export interface ShippingOption {
+  id: string;
+  label: string;
+  cost: number;
+  estimated_days: string;
+}
+
+export interface BuyerAddress {
+  name: string;
+  line1: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
+export interface BuyerContact {
+  email?: string;
+  phone?: string;
+}
+
+export interface Fulfillment {
+  selected_shipping_option_id: string;
+  shipping_options: ShippingOption[];
+  buyer_address?: BuyerAddress;
+  buyer_contact?: BuyerContact;
+}
+
+export interface CheckoutItemResponse {
+  id: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  unit_price: number;
+  quantity: number;
+  total_price: number;
+  image_url?: string;
+  delivery_estimate?: string;
+}
+
+export interface CheckoutSessionResponse {
+  checkout_id: string;
+  id: string;
+  cart_id: string | null;
+  merchant_id: string;
+  status: CheckoutStatus;
+  currency: string;
+  subtotal: number;
+  tax: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  item_count: number;
+  items: CheckoutItemResponse[];
+  fulfillment: Fulfillment;
+  integrity_hash: string;
+  capabilities: {
+    can_update_quantity: boolean;
+    can_update_fulfillment: boolean;
+    can_cancel: boolean;
+    can_complete: boolean;
+    payment_methods_supported: string[];
+  };
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AuditEventResponse {
+  id: string;
+  requestId: string;
+  userId?: string | null;
+  agentSessionId?: string | null;
+  checkoutId?: string | null;
+  eventType: string;
+  result: string;
+  metadata: Record<string, any>;
+  createdAt: string;
+}
+
+// --- Phase 4: Security, Policy Engine & Mandate Types ---
+
+export interface PolicyCheckItem {
+  check: string;
+  name: string;
+  passed: boolean;
+  details: string;
+}
+
+export interface PolicyEvaluationReport {
+  decision: "ALLOW" | "DENY";
+  reason_code: string;
+  reason_message: string;
+  checkout_id: string;
+  total_amount: number;
+  max_authorized_amount: number;
+  currency: string;
+  checks: PolicyCheckItem[];
+  timestamp: string;
+}
+
+export interface MandateResponse {
+  mandate_id: string;
+  user_id: string;
+  merchant_id: string;
+  checkout_id: string;
+  checkout_integrity_hash: string;
+  amount: number;
+  currency: string;
+  constraints: Record<string, any>;
+  signature: string;
+  nonce: string;
+  status: "PENDING" | "AUTHORIZED" | "DENIED" | "INVALIDATED" | "EXPIRED" | "CONSUMED";
+  decision: PolicyEvaluationReport;
+  issued_at: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface UserConstraintsResponse {
+  constraint_id: string;
+  user_id: string;
+  session_id: string | null;
+  max_amount: number;
+  currency: string;
+  allowed_merchants: string[];
+  allowed_categories: string[];
+  max_quantity: number;
+  required_features: Record<string, any>;
+  status: string;
+  expires_at: string;
+  created_at: string;
+}
+
+// --- Phase 5: Razorpay Payment & Order Types ---
+
+export type PaymentStatus =
+  | "NOT_STARTED"
+  | "ORDER_CREATED"
+  | "PAYMENT_PENDING"
+  | "PAYMENT_VERIFICATION_PENDING"
+  | "PAID"
+  | "FAILED"
+  | "EXPIRED"
+  | "REFUNDED";
+
+export type OrderStatus =
+  | "PLACED"
+  | "PROCESSING"
+  | "SHIPPED"
+  | "CANCELLED"
+  | "ORDER_PROCESSING_FAILED";
+
+export interface InitiatePaymentResponse {
+  payment_id: string;
+  razorpay_order_id: string;
+  razorpay_key_id: string;
+  amount: number;
+  amount_paise: number;
+  currency: string;
+  status: PaymentStatus;
+  merchant_name: string;
+  description: string;
+}
+
+export interface OrderItemResponse {
+  id: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface MerchantOrderResponse {
+  order_id: string;
+  payment_id: string;
+  checkout_id: string;
+  merchant_id: string;
+  merchant_name: string;
+  subtotal: number;
+  tax: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  currency: string;
+  status: OrderStatus;
+  items: OrderItemResponse[];
+  fulfillment: Record<string, any>;
+  created_at: string;
+}
+
+export interface VerifyPaymentResponse {
+  payment_id: string;
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  status: PaymentStatus;
+  order: MerchantOrderResponse;
+  message: string;
+}

@@ -8,38 +8,44 @@ datasource db {
 }
 
 model Merchant {
-  id          String    @id @default(uuid())
-  name        String
-  description String
-  currency    String    @default("INR")
-  status      String    @default("ACTIVE")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[]
-  carts       Cart[]
+  id               String                 @id @default(uuid())
+  name             String
+  description      String
+  currency         String                 @default("INR")
+  status           String                 @default("ACTIVE")
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  products         Product[]
+  carts            Cart[]
+  checkoutSessions CheckoutSession[]
+  mandates         AuthorizationMandate[]
+  payments         Payment[]
+  orders           MerchantOrder[]
 
   @@map("merchants")
 }
 
 model Product {
-  id               String      @id @default(uuid())
+  id               String         @id @default(uuid())
   merchantId       String
-  merchant         Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  sku              String      @unique
+  merchant         Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  sku              String         @unique
   name             String
   description      String
   category         String
-  price            Int         // Price in smallest currency unit (e.g. INR integer)
-  currency         String      @default("INR")
-  attributes       Json        // Structured attributes: { wireless, anc, battery_hours, ram, etc. }
-  rating           Float       @default(0.0)
+  price            Int            // Price in smallest currency unit (e.g. INR integer)
+  currency         String         @default("INR")
+  attributes       Json           // Structured attributes: { wireless, anc, battery_hours, ram, etc. }
+  rating           Float          @default(0.0)
   imageUrl         String
   deliveryEstimate String
-  status           String      @default("ACTIVE")
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  status           String         @default("ACTIVE")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
   inventory        Inventory?
   cartItems        CartItem[]
+  checkoutItems    CheckoutItem[]
+  orderItems       OrderItem[]
 
   @@index([category])
   @@index([price])
@@ -61,15 +67,16 @@ model Inventory {
 }
 
 model Cart {
-  id          String     @id @default(uuid())
-  merchantId  String
-  merchant    Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  status      String     @default("ACTIVE") // ACTIVE, ABANDONED, LOCKED
-  subtotal    Int        @default(0)        // Server-calculated integer INR
-  currency    String     @default("INR")
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  items       CartItem[]
+  id               String            @id @default(uuid())
+  merchantId       String
+  merchant         Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  status           String            @default("ACTIVE") // ACTIVE, ABANDONED, LOCKED
+  subtotal         Int               @default(0)        // Server-calculated integer INR
+  currency         String            @default("INR")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  items            CartItem[]
+  checkoutSessions CheckoutSession[]
 
   @@index([merchantId])
   @@index([status])
@@ -90,4 +97,233 @@ model CartItem {
 
   @@unique([cartId, productId])
   @@map("cart_items")
+}
+
+model CheckoutSession {
+  id            String                 @id @default(uuid())
+  cartId        String?
+  cart          Cart?                  @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  merchantId    String
+  merchant      Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  status        String                 @default("CREATED") // CREATED, INCOMPLETE, READY_FOR_PAYMENT, COMPLETED, CANCELED, EXPIRED
+  currency      String                 @default("INR")
+  subtotal      Int                    @default(0) // Server-calculated item subtotal
+  tax           Int                    @default(0) // Calculated tax (e.g. 10% GST)
+  shipping      Int                    @default(0) // Shipping fee (₹0 if subtotal >= 1000)
+  discount      Int                    @default(0) // Discount (e.g. 5% if subtotal >= 3000)
+  total         Int                    @default(0) // Authoritative total: subtotal + tax + shipping - discount
+  integrityHash String                 // SHA-256 integrity hash of items, prices, fulfillment, and total
+  fulfillment   Json                   @default("{}") // Fulfillment/shipping address, shipping method, contact
+  itemsSnapshot Json                   @default("[]") // Frozen line item details
+  metadata      Json                   @default("{}") // Custom session metadata, request_id, agent_session_id
+  expiresAt     DateTime               // Session expiration time (e.g. 30 mins)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  items         CheckoutItem[]
+  auditEvents   AuditEvent[]
+  mandates      AuthorizationMandate[]
+  payments      Payment[]
+  orders        MerchantOrder[]
+
+  @@index([merchantId])
+  @@index([cartId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("checkout_sessions")
+}
+
+model CheckoutItem {
+  id         String          @id @default(uuid())
+  checkoutId String
+  checkout   CheckoutSession @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity   Int             @default(1)
+  unitPrice  Int             // Authoritative unit price at checkout
+  totalPrice Int             // quantity * unitPrice
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([checkoutId, productId])
+  @@map("checkout_items")
+}
+
+model IdempotencyRecord {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  method       String
+  path         String
+  requestHash  String
+  statusCode   Int
+  responseBody Json
+  createdAt    DateTime @default(now())
+
+  @@index([key])
+  @@map("idempotency_records")
+}
+
+model AuditEvent {
+  id             String           @id @default(uuid())
+  requestId      String
+  userId         String?
+  agentSessionId String?
+  checkoutId     String?
+  checkout       CheckoutSession? @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+  eventType      String
+  result         String           // SUCCESS, FAILURE, PRICE_CHANGED, OUT_OF_STOCK, etc.
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now())
+
+  @@index([requestId])
+  @@index([checkoutId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("audit_events")
+}
+
+model UserConstraint {
+  id                String                 @id @default(uuid())
+  userId            String                 @default("user_default")
+  sessionId         String?
+  maxAmount         Int                    // Maximum authorized budget in integer INR
+  currency          String                 @default("INR")
+  allowedMerchants  Json                   @default("[]") // Array of allowed merchant IDs/names
+  allowedCategories Json                   @default("[]") // Array of allowed category names
+  maxQuantity       Int                    @default(1)
+  requiredFeatures  Json                   @default("{}") // Object e.g. { anc: true, wireless: true }
+  status            String                 @default("ACTIVE") // ACTIVE, EXPIRED, REVOKED
+  expiresAt         DateTime
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  mandates          AuthorizationMandate[]
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+  @@map("user_constraints")
+}
+
+model AuthorizationMandate {
+  id                    String          @id @default(uuid())
+  userId                String          @default("user_default")
+  merchantId            String
+  merchant              Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  checkoutId            String
+  checkout              CheckoutSession @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+  constraintId          String?
+  constraint            UserConstraint? @relation(fields: [constraintId], references: [id], onDelete: SetNull)
+  checkoutIntegrityHash String          // SHA-256 checkout hash at authorization time
+  amount                Int             // Authoritative total authorized in integer INR
+  currency              String          @default("INR")
+  constraintsSnapshot   Json            @default("{}") // Frozen user constraints snapshot
+  signature             String          // HMAC-SHA256 signature
+  nonce                 String          @unique // Cryptographic one-time nonce
+  status                String          @default("PENDING") // PENDING, AUTHORIZED, DENIED, INVALIDATED, EXPIRED, CONSUMED
+  decisionDetails       Json            @default("{}") // Policy engine check report
+  issuedAt              DateTime        @default(now())
+  expiresAt             DateTime        // Mandate expiry (e.g. 10 mins)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  payments              Payment[]
+
+  @@index([checkoutId])
+  @@index([userId])
+  @@index([status])
+  @@index([nonce])
+  @@map("authorization_mandates")
+}
+
+model UsedNonce {
+  id        String   @id @default(uuid())
+  nonce     String   @unique
+  purpose   String   @default("mandate_auth")
+  usedAt    DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([nonce])
+  @@map("used_nonces")
+}
+
+model Payment {
+  id                String               @id @default(uuid())
+  mandateId         String
+  mandate           AuthorizationMandate @relation(fields: [mandateId], references: [id], onDelete: Cascade)
+  checkoutId        String
+  checkout          CheckoutSession      @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+  merchantId        String
+  merchant          Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  razorpayOrderId   String               @unique
+  razorpayPaymentId String?              @unique
+  razorpaySignature String?
+  amount            Int                  // Amount in integer INR
+  amountPaise       Int                  // Amount in smallest unit (paise: amount * 100)
+  currency          String               @default("INR")
+  status            String               @default("NOT_STARTED") // NOT_STARTED, ORDER_CREATED, PAYMENT_PENDING, PAYMENT_VERIFICATION_PENDING, PAID, FAILED, EXPIRED, REFUNDED
+  failureReason     String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  order             MerchantOrder?
+
+  @@index([mandateId])
+  @@index([checkoutId])
+  @@index([merchantId])
+  @@index([razorpayOrderId])
+  @@index([status])
+  @@map("payments")
+}
+
+model MerchantOrder {
+  id            String          @id @default(uuid())
+  merchantId    String
+  merchant      Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  checkoutId    String
+  checkout      CheckoutSession @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
+  paymentId     String          @unique
+  payment       Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  status        String          @default("PLACED") // PLACED, PROCESSING, SHIPPED, CANCELLED, ORDER_PROCESSING_FAILED
+  subtotal      Int             // Integer INR
+  tax           Int             // Integer INR
+  shipping      Int             // Integer INR
+  discount      Int             // Integer INR
+  total         Int             // Integer INR
+  currency      String          @default("INR")
+  itemsSnapshot Json            @default("[]")
+  fulfillment   Json            @default("{}")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  orderItems    OrderItem[]
+
+  @@index([merchantId])
+  @@index([checkoutId])
+  @@index([status])
+  @@map("merchant_orders")
+}
+
+model OrderItem {
+  id         String        @id @default(uuid())
+  orderId    String
+  order      MerchantOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity   Int           @default(1)
+  unitPrice  Int
+  totalPrice Int
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([orderId, productId])
+  @@map("order_items")
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique // e.g. evt_... from Razorpay
+  eventType   String   // e.g. payment.captured, payment.failed, order.paid
+  payload     Json
+  status      String   @default("PROCESSED") // PROCESSED, FAILED, DUPLICATE_IGNORED
+  processedAt DateTime @default(now())
+
+  @@index([eventId])
+  @@index([eventType])
+  @@map("webhook_events")
 }

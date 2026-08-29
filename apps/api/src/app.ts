@@ -12,6 +12,10 @@ import { inventoryRoutes } from "./routes/inventory.routes.js";
 import { rulesRoutes } from "./routes/rules.routes.js";
 import { cartRoutes } from "./routes/cart.routes.js";
 import { buyerRoutes } from "./routes/buyer.routes.js";
+import { checkoutRoutes } from "./routes/checkout.routes.js";
+import { authorizationRoutes } from "./routes/authorization.routes.js";
+import { paymentRoutes } from "./routes/payment.routes.js";
+import { webhookRoutes } from "./routes/webhook.routes.js";
 
 export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
   const app = fastify({
@@ -72,7 +76,15 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
   // Health Route
   app.register(healthRoutes);
 
-  // Version 1 Merchant & Buyer APIs
+  // Webhooks
+  app.register(webhookRoutes);
+
+  // Direct Standard Routes
+  app.register(checkoutRoutes);
+  app.register(authorizationRoutes);
+  app.register(paymentRoutes);
+
+  // Version 1 Merchant, Buyer, Checkout, Authorization & Payment APIs (/api/v1/...)
   app.register(
     async (v1) => {
       await v1.register(merchantRoutes);
@@ -81,6 +93,9 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
       await v1.register(rulesRoutes);
       await v1.register(cartRoutes);
       await v1.register(buyerRoutes);
+      await v1.register(checkoutRoutes);
+      await v1.register(authorizationRoutes);
+      await v1.register(paymentRoutes);
     },
     { prefix: "/api/v1" }
   );

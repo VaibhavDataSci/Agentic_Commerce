@@ -2,12 +2,18 @@
 
 import React, { useState } from "react";
 import { Send, Bot, Sparkles, AlertCircle, RefreshCw, HelpCircle } from "lucide-react";
-import { sendBuyerChat, createCart } from "../../lib/api";
-import { BuyerChatResponse, CartResponse, Product } from "../../lib/types";
+import { sendBuyerChat, createCart, createCheckoutSession } from "../../lib/api";
+import {
+  BuyerChatResponse,
+  CartResponse,
+  CheckoutSessionResponse,
+  Product
+} from "../../lib/types";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { ExtractedRequirements } from "./ExtractedRequirements";
 import { RankedProductList } from "./RankedProductList";
 import { ActiveCartView } from "./ActiveCartView";
+import { CheckoutView } from "./CheckoutView";
 
 interface AiBuyerInterfaceProps {
   onInspectJson: (product: Product) => void;
@@ -17,9 +23,11 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [creatingCheckout, setCreatingCheckout] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [buyerResponse, setBuyerResponse] = useState<BuyerChatResponse | null>(null);
   const [createdCart, setCreatedCart] = useState<CartResponse | null>(null);
+  const [checkoutSession, setCheckoutSession] = useState<CheckoutSessionResponse | null>(null);
 
   const samplePrompts = [
     "Find me wireless ANC headphones under ₹5,000, deliverable in 2 days",
@@ -35,6 +43,7 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
     setLoading(true);
     setError(null);
     setCreatedCart(null);
+    setCheckoutSession(null);
 
     try {
       const res = await sendBuyerChat(textToSend.trim(), buyerResponse?.session_id);
@@ -77,10 +86,41 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
     }
   };
 
+  const handleProceedToCheckout = async (cartId: string) => {
+    setCreatingCheckout(true);
+    setError(null);
+    try {
+      const session = await createCheckoutSession(cartId, undefined, buyerResponse?.session_id);
+      setCheckoutSession(session);
+
+      // Append 'Checkout Session Initialized' to timeline
+      if (buyerResponse) {
+        setBuyerResponse({
+          ...buyerResponse,
+          timeline: [
+            ...buyerResponse.timeline,
+            {
+              id: "step_checkout",
+              title: "ACP Checkout session initialized",
+              detail: `Session ${session.checkout_id.slice(0, 8)}... Ready for payment (Authoritative Total: ₹${session.total.toLocaleString("en-IN")})`,
+              status: "completed",
+              timestamp: new Date().toISOString()
+            }
+          ]
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to initialize ACP checkout session");
+    } finally {
+      setCreatingCheckout(false);
+    }
+  };
+
   const handleReset = () => {
     setPrompt("");
     setBuyerResponse(null);
     setCreatedCart(null);
+    setCheckoutSession(null);
     setError(null);
   };
 
@@ -97,7 +137,7 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
               AI Buyer &bull; Natural Language Shopping
             </h2>
             <p className="text-xs text-slate-400">
-              Describe what you need — Gemini extracts intent, queries merchant APIs, and ranks top products.
+              Describe what you need — Gemini extracts intent, queries merchant APIs, and creates ACP checkouts.
             </p>
           </div>
         </div>
@@ -190,7 +230,7 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
       {buyerResponse && <ExtractedRequirements intent={buyerResponse.intent} />}
 
       {/* 6. Ranked Products Comparison & Recommendation */}
-      {buyerResponse && !buyerResponse.intent.is_ambiguous && (
+      {buyerResponse && !buyerResponse.intent.is_ambiguous && !createdCart && !checkoutSession && (
         <RankedProductList
           products={buyerResponse.products}
           ranking={buyerResponse.ranking}
@@ -202,7 +242,23 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
       )}
 
       {/* 7. Active Created Cart */}
-      {createdCart && <ActiveCartView cart={createdCart} onReset={handleReset} />}
+      {createdCart && !checkoutSession && (
+        <ActiveCartView
+          cart={createdCart}
+          onReset={handleReset}
+          onProceedToCheckout={handleProceedToCheckout}
+          creatingCheckout={creatingCheckout}
+        />
+      )}
+
+      {/* 8. Phase 3 ACP Checkout Session View */}
+      {checkoutSession && (
+        <CheckoutView
+          checkout={checkoutSession}
+          onCheckoutUpdated={(updated) => setCheckoutSession(updated)}
+          onReset={handleReset}
+        />
+      )}
     </div>
   );
 };

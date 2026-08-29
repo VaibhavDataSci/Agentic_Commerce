@@ -49,13 +49,14 @@ export function errorHandler(
     });
   }
 
-  // Generic Internal Server Error (Hide internal details and stack trace)
+  // Generic Application / Custom Error
   const statusCode = (error as any).statusCode || 500;
   return reply.status(statusCode).send({
     error: {
       code: (error as any).code || "INTERNAL_SERVER_ERROR",
       message: statusCode === 500 ? "An unexpected error occurred. Please try again later." : error.message,
-      request_id: requestId
+      request_id: requestId,
+      details: (error as any).details || undefined
     }
   });
 }

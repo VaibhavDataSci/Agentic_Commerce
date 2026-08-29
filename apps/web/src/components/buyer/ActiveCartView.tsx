@@ -1,18 +1,25 @@
 import React from "react";
-import { CheckCircle2, ShoppingBag, ArrowRight } from "lucide-react";
+import { CheckCircle2, ShoppingBag, ArrowRight, ShieldCheck, RefreshCw } from "lucide-react";
 import { CartResponse } from "../../lib/types";
 import { formatINR } from "../../lib/utils";
 
 interface ActiveCartViewProps {
   cart: CartResponse | null;
   onReset: () => void;
+  onProceedToCheckout?: (cartId: string) => void;
+  creatingCheckout?: boolean;
 }
 
-export const ActiveCartView: React.FC<ActiveCartViewProps> = ({ cart, onReset }) => {
+export const ActiveCartView: React.FC<ActiveCartViewProps> = ({
+  cart,
+  onReset,
+  onProceedToCheckout,
+  creatingCheckout = false
+}) => {
   if (!cart) return null;
 
   return (
-    <div className="rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-950/20 via-slate-900/60 to-[#080d1e] p-6 shadow-2xl space-y-4 animate-fade-in">
+    <div className="rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-950/20 via-slate-900/60 to-[#080d1e] p-6 shadow-2xl space-y-5 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-500/20 pb-4">
         <div className="flex items-center space-x-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
@@ -44,7 +51,7 @@ export const ActiveCartView: React.FC<ActiveCartViewProps> = ({ cart, onReset })
                 <img
                   src={item.image_url}
                   alt={item.product_name}
-                  className="h-12 w-12 rounded-lg object-cover bg-slate-950"
+                  className="h-12 w-12 rounded-lg object-cover bg-slate-950 border border-slate-800"
                 />
               )}
               <div>
@@ -65,18 +72,35 @@ export const ActiveCartView: React.FC<ActiveCartViewProps> = ({ cart, onReset })
         ))}
       </div>
 
-      {/* Next Phase Notice & Actions */}
-      <div className="rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-3 text-xs text-slate-300 flex items-center justify-between">
-        <span>
-          🛒 Ready for <strong>Phase 3: Agentic Checkout &amp; Razorpay Payment</strong>
-        </span>
+      {/* Checkout Action Row */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
         <button
           onClick={onReset}
-          className="flex items-center space-x-1 font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+          className="text-xs text-slate-400 hover:text-white transition-colors"
         >
-          <span>Start New Search</span>
-          <ArrowRight className="h-3.5 w-3.5" />
+          &larr; Start New Search
         </button>
+
+        {onProceedToCheckout && (
+          <button
+            onClick={() => onProceedToCheckout(cart.cart_id)}
+            disabled={creatingCheckout}
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 rounded-xl bg-indigo-600 px-6 py-3 text-xs font-bold text-white hover:bg-indigo-500 active:scale-95 transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+          >
+            {creatingCheckout ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Initializing ACP Checkout...</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-4 w-4" />
+                <span>Proceed to ACP Checkout</span>
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

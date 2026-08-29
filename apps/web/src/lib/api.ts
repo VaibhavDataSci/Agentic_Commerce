@@ -5,7 +5,13 @@ import {
   ProductSearchFilters,
   RuleEngineReport,
   BuyerChatResponse,
-  CartResponse
+  CartResponse,
+  CheckoutSessionResponse,
+  MandateResponse,
+  PolicyEvaluationReport,
+  UserConstraintsResponse,
+  InitiatePaymentResponse,
+  VerifyPaymentResponse
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
@@ -94,6 +100,236 @@ export async function fetchCart(cartId: string): Promise<CartResponse> {
   const res = await fetch(`${API_BASE_URL}/api/v1/cart/${cartId}`, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Cart not found: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+// --- Phase 3: ACP Agentic Checkout APIs ---
+
+export async function createCheckoutSession(
+  cartId?: string,
+  items?: Array<{ product_id: string; quantity: number }>,
+  agentSessionId?: string,
+  idempotencyKey?: string
+): Promise<CheckoutSessionResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+  if (agentSessionId) {
+    headers["x-agent-session-id"] = agentSessionId;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/checkout_sessions`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      cart_id: cartId,
+      items: items,
+      agent_session_id: agentSessionId
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to create checkout session (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchCheckoutSession(checkoutId: string): Promise<CheckoutSessionResponse> {
+  const res = await fetch(`${API_BASE_URL}/checkout_sessions/${checkoutId}`, { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to fetch checkout session (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateCheckoutSession(
+  checkoutId: string,
+  updates: {
+    items?: Array<{ product_id: string; quantity: number }>;
+    fulfillment?: { selected_shipping_option_id?: string; buyer_address?: any; buyer_contact?: any };
+  },
+  idempotencyKey?: string
+): Promise<CheckoutSessionResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/checkout_sessions/${checkoutId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(updates)
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to update checkout session (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function completeCheckoutSession(
+  checkoutId: string,
+  idempotencyKey?: string
+): Promise<CheckoutSessionResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/checkout_sessions/${checkoutId}/complete`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({})
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to complete checkout (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function cancelCheckoutSession(
+  checkoutId: string,
+  idempotencyKey?: string
+): Promise<CheckoutSessionResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/checkout_sessions/${checkoutId}/cancel`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({})
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to cancel checkout (${res.status})`);
+  }
+  return res.json();
+}
+
+// --- Phase 4: Security, Policy Engine & Mandate APIs ---
+
+export async function requestAuthorizationMandate(
+  checkoutId: string,
+  maxAmount: number,
+  currency = "INR",
+  sessionId?: string
+): Promise<MandateResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/authorizations/mandates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      checkout_id: checkoutId,
+      user_constraints: {
+        max_amount: maxAmount,
+        currency,
+        max_quantity: 5
+      }
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to request authorization mandate (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchMandateById(mandateId: string): Promise<MandateResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/authorizations/mandates/${mandateId}`, {
+    cache: "no-store"
+  });
+  if (!res.ok) {
+    throw new Error(`Mandate not found (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function approveMandate(mandateId: string): Promise<{ mandate: MandateResponse; status: string; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/authorizations/mandates/${mandateId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation: true })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to approve mandate (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function denyMandate(mandateId: string): Promise<{ mandate: MandateResponse; status: string; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/authorizations/mandates/${mandateId}/deny`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({})
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Failed to deny mandate (${res.status})`);
+  }
+  return res.json();
+}
+
+// --- Phase 5: Razorpay Payment & Order APIs ---
+
+export async function initiatePayment(
+  mandateId: string,
+  checkoutId: string,
+  idempotencyKey?: string
+): Promise<InitiatePaymentResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/payments/initiate`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      mandate_id: mandateId,
+      checkout_id: checkoutId
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Payment initiation failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function verifyPayment(
+  paymentId: string,
+  razorpayOrderId: string,
+  razorpayPaymentId: string,
+  razorpaySignature: string
+): Promise<VerifyPaymentResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/payments/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      payment_id: paymentId,
+      razorpay_order_id: razorpayOrderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: razorpaySignature
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Payment verification failed (${res.status})`);
   }
   return res.json();
 }
