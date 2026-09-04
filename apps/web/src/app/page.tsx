@@ -11,9 +11,10 @@ import { RuleEngineDrawer } from "../components/RuleEngineDrawer";
 import { CartOptimizerModal } from "../components/CartOptimizerModal";
 import { InactivityPopup } from "../components/InactivityPopup";
 import { AiBuyerInterface } from "../components/buyer/AiBuyerInterface";
-import { fetchMerchantProfile, fetchProducts } from "../lib/api";
-import { MerchantProfile, Product } from "../lib/types";
+import { fetchMerchantProfile, fetchProducts, createCheckoutSession } from "../lib/api";
+import { MerchantProfile, Product, CheckoutSessionResponse } from "../lib/types";
 import { AlertCircle, RefreshCw, Layers, Bot, Store } from "lucide-react";
+import { CheckoutView } from "../components/buyer/CheckoutView";
 
 interface CartItem {
   product: Product;
@@ -44,6 +45,8 @@ export default function HomePage() {
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showInactivityPopup, setShowInactivityPopup] = useState<boolean>(false);
+  const [catalogCheckoutSession, setCatalogCheckoutSession] = useState<CheckoutSessionResponse | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState<boolean>(false);
 
   // Inactivity tracking (10 seconds user behavior rule)
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -136,6 +139,26 @@ export default function HomePage() {
     setCart([]);
   };
 
+  const handleProceedToCheckoutFromCart = async () => {
+    if (cart.length === 0) return;
+    setIsCheckingOut(true);
+    try {
+      const session = await createCheckoutSession(
+        undefined,
+        cart.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity
+        }))
+      );
+      setCatalogCheckoutSession(session);
+      setIsCartOpen(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to initialize checkout session");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const handleResetFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
@@ -194,6 +217,45 @@ export default function HomePage() {
             </button>
           </div>
         </div>
+
+        {/* Active Catalog Checkout Session View */}
+        {catalogCheckoutSession && (
+          <div className="space-y-4 rounded-2xl border-2 border-indigo-500/40 bg-[#090e1f] p-5 shadow-2xl animate-fade-in">
+            <div className="flex items-center justify-between border-b border-indigo-900/40 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+                  <Store className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                    Merchant Cart &bull; ACP Checkout Session
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Authoritative server calculation, deterministic policy engine &amp; Razorpay Test Mode
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCatalogCheckoutSession(null)}
+                className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+              >
+                Close Checkout
+              </button>
+            </div>
+
+            <CheckoutView
+              checkout={catalogCheckoutSession}
+              onCheckoutUpdated={(updated) => setCatalogCheckoutSession(updated)}
+              onReset={() => {
+                setCatalogCheckoutSession(null);
+                setCart([]);
+              }}
+              onPaymentCompleted={() => {
+                setCart([]);
+              }}
+            />
+          </div>
+        )}
 
         {/* Tab 1: AI Buyer Agent Interface (Phase 2) */}
         {activeTab === "ai_buyer" && (
@@ -309,6 +371,8 @@ export default function HomePage() {
         cart={cart}
         onRemoveItem={handleRemoveFromCart}
         onClearCart={handleClearCart}
+        onProceedToCheckout={handleProceedToCheckoutFromCart}
+        isCheckingOut={isCheckingOut}
       />
       <InactivityPopup
         isOpen={showInactivityPopup}
