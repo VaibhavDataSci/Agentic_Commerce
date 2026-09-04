@@ -15,7 +15,12 @@ import {
   Sparkles,
   Lock
 } from "lucide-react";
-import { CheckoutSessionResponse, ShippingOption, MandateResponse } from "../../lib/types";
+import {
+  CheckoutSessionResponse,
+  ShippingOption,
+  MandateResponse,
+  MerchantOrderResponse
+} from "../../lib/types";
 import {
   updateCheckoutSession,
   cancelCheckoutSession,
@@ -28,18 +33,21 @@ interface CheckoutViewProps {
   checkout: CheckoutSessionResponse;
   onCheckoutUpdated: (updated: CheckoutSessionResponse) => void;
   onReset: () => void;
+  onPaymentCompleted?: (order: MerchantOrderResponse) => void;
 }
 
 export const CheckoutView: React.FC<CheckoutViewProps> = ({
   checkout,
   onCheckoutUpdated,
-  onReset
+  onReset,
+  onPaymentCompleted
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showIntegrityDetails, setShowIntegrityDetails] = useState(false);
   const [activeMandate, setActiveMandate] = useState<MandateResponse | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [completedOrder, setCompletedOrder] = useState<MerchantOrderResponse | null>(null);
 
   const isTerminal = ["COMPLETED", "CANCELED", "EXPIRED"].includes(checkout.status);
   const isReady = checkout.status === "READY_FOR_PAYMENT";
@@ -90,6 +98,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   // Handle Start Purchase Authorization (Phase 4 Security Layer)
   const handleRequestAuthorization = async () => {
+    if (checkout.status !== "READY_FOR_PAYMENT") {
+      setError(`Checkout session is '${checkout.status}' and cannot be authorized again. Please start a new search.`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -120,6 +133,15 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   };
 
   const getStatusBadge = () => {
+    if (checkout.status === "COMPLETED" || completedOrder) {
+      return (
+        <span className="inline-flex items-center space-x-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-1 text-xs font-bold text-emerald-400">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          <span>ORDER PLACED & PAID</span>
+        </span>
+      );
+    }
+
     if (activeMandate?.status === "AUTHORIZED") {
       return (
         <span className="inline-flex items-center space-x-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-1 text-xs font-bold text-emerald-400">
@@ -135,13 +157,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           <span className="inline-flex items-center space-x-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-1 text-xs font-bold text-emerald-400">
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>READY FOR PAYMENT</span>
-          </span>
-        );
-      case "COMPLETED":
-        return (
-          <span className="inline-flex items-center space-x-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 px-3 py-1 text-xs font-bold text-indigo-300">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>COMPLETED</span>
           </span>
         );
       case "CANCELED":
@@ -378,9 +393,27 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
           </div>
 
+          {/* Order Completion Success Banner */}
+          {(checkout.status === "COMPLETED" || completedOrder) && (
+            <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/25 p-4 space-y-2 animate-fade-in text-xs">
+              <div className="flex items-center space-x-2 text-emerald-400 font-bold">
+                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                <span className="text-sm">Order Placed &amp; Paid Successfully</span>
+              </div>
+              {completedOrder && (
+                <p className="font-mono text-slate-300">
+                  Order ID: <span className="text-white font-bold">{completedOrder.order_id}</span>
+                </p>
+              )}
+              <p className="text-slate-400">
+                Payment captured via Razorpay Test Mode. Merchant inventory decremented and mandate consumed.
+              </p>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="space-y-2 pt-1">
-            {isReady && (
+            {isReady && !completedOrder && (
               <button
                 onClick={handleRequestAuthorization}
                 disabled={loading}
@@ -392,7 +425,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </button>
             )}
 
-            {isReady && (
+            {isReady && !completedOrder && (
               <button
                 onClick={handleCancel}
                 disabled={loading}
@@ -402,7 +435,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </button>
             )}
 
-            {isTerminal && (
+            {(isTerminal || completedOrder) && (
               <button
                 onClick={onReset}
                 className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 transition-all shadow-md shadow-indigo-600/30"
@@ -422,6 +455,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           mandate={activeMandate}
           checkout={checkout}
           onMandateUpdated={(updated) => setActiveMandate(updated)}
+          onPaymentCompleted={(order) => {
+            setCompletedOrder(order);
+            onCheckoutUpdated({ ...checkout, status: "COMPLETED" });
+            if (onPaymentCompleted) onPaymentCompleted(order);
+          }}
         />
       )}
     </div>

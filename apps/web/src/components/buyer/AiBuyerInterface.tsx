@@ -7,7 +7,8 @@ import {
   BuyerChatResponse,
   CartResponse,
   CheckoutSessionResponse,
-  Product
+  Product,
+  MerchantOrderResponse
 } from "../../lib/types";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { ExtractedRequirements } from "./ExtractedRequirements";
@@ -113,6 +114,31 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
       setError(err.message || "Failed to initialize ACP checkout session");
     } finally {
       setCreatingCheckout(false);
+    }
+  };
+
+  const handlePaymentCompleted = (order: MerchantOrderResponse) => {
+    if (checkoutSession) {
+      setCheckoutSession({
+        ...checkoutSession,
+        status: "COMPLETED"
+      });
+    }
+
+    if (buyerResponse) {
+      setBuyerResponse({
+        ...buyerResponse,
+        timeline: [
+          ...buyerResponse.timeline,
+          {
+            id: "step_order_completed",
+            title: "Merchant Order Placed & Payment Captured",
+            detail: `Order ${order.order_id.slice(0, 12)}... Total: ₹${order.total.toLocaleString("en-IN")}. Inventory decremented and AP2 mandate consumed.`,
+            status: "completed",
+            timestamp: new Date().toISOString()
+          }
+        ]
+      });
     }
   };
 
@@ -257,6 +283,7 @@ export const AiBuyerInterface: React.FC<AiBuyerInterfaceProps> = ({ onInspectJso
           checkout={checkoutSession}
           onCheckoutUpdated={(updated) => setCheckoutSession(updated)}
           onReset={handleReset}
+          onPaymentCompleted={handlePaymentCompleted}
         />
       )}
     </div>

@@ -50,36 +50,35 @@ export const RazorpayPaymentModal: React.FC<RazorpayPaymentModalProps> = ({
     "INIT" | "ORDER_CREATED" | "PROCESSING" | "VERIFIED" | "FAILED"
   >("INIT");
 
+  const inFlightRef = React.useRef(false);
+
   // Initiate Razorpay Order on modal mount if not already done
   useEffect(() => {
-    if (!isOpen || paymentData || initLoading) return;
+    if (!isOpen) {
+      inFlightRef.current = false;
+      return;
+    }
 
-    let isMounted = true;
-    const createPaymentOrder = async () => {
-      setInitLoading(true);
-      setError(null);
-      try {
-        const res = await initiatePayment(mandate.mandate_id, checkout.checkout_id);
-        if (isMounted) {
-          setPaymentData(res);
-          setPaymentStep("ORDER_CREATED");
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err.message || "Failed to initialize Razorpay test payment");
-          setPaymentStep("FAILED");
-        }
-      } finally {
-        if (isMounted) setInitLoading(false);
-      }
-    };
+    if (paymentData || inFlightRef.current) return;
 
-    createPaymentOrder();
+    inFlightRef.current = true;
+    setInitLoading(true);
+    setError(null);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen, mandate.mandate_id, checkout.checkout_id, paymentData, initLoading]);
+    initiatePayment(mandate.mandate_id, checkout.checkout_id)
+      .then((res) => {
+        setPaymentData(res);
+        setPaymentStep("ORDER_CREATED");
+      })
+      .catch((err: any) => {
+        inFlightRef.current = false;
+        setError(err.message || "Failed to initialize Razorpay test payment");
+        setPaymentStep("FAILED");
+      })
+      .finally(() => {
+        setInitLoading(false);
+      });
+  }, [isOpen, mandate.mandate_id, checkout.checkout_id]);
 
   if (!isOpen) return null;
 
