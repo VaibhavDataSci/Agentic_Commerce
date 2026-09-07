@@ -2,6 +2,9 @@
 Agentic Commerce — FastAPI backend entry point.
 Replace the placeholder routes below with your actual application logic.
 """
+
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,8 +15,6 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────
-import os
-
 origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 app.add_middleware(
